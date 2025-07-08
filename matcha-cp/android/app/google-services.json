@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "351811632239",
+    "project_id": "matche-39f37",
+    "storage_bucket": "matche-39f37.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:351811632239:android:fa2df53656f5b28399e19a",
+        "android_client_info": {
+          "package_name": "com.example.matcha"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAgDgmSvLiZA9XYTfE6SSinfd8KQ0QfN5s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

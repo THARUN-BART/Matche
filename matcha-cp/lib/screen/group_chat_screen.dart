@@ -35,11 +35,9 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _chatService = Provider.of<RealtimeChatService>(context, listen: false);
-      _firestoreService = Provider.of<FirestoreService>(context, listen: false);
-      _initializeGroupChat();
-    });
+    _chatService = Provider.of<RealtimeChatService>(context, listen: false);
+    _firestoreService = Provider.of<FirestoreService>(context, listen: false);
+    _initializeGroupChat();
   }
 
   Future<void> _initializeGroupChat() async {

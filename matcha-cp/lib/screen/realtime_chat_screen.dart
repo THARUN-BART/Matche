@@ -37,11 +37,9 @@ class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _chatService = Provider.of<RealtimeChatService>(context, listen: false);
-      _firestoreService = Provider.of<FirestoreService>(context, listen: false);
-      _initializeChat();
-    });
+    _chatService = Provider.of<RealtimeChatService>(context, listen: false);
+    _firestoreService = Provider.of<FirestoreService>(context, listen: false);
+    _initializeChat();
   }
 
   Future<void> _initializeChat() async {

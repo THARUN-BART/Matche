@@ -48,6 +48,7 @@ class DefaultFirebaseOptions {
     authDomain: 'matche-39f37.firebaseapp.com',
     storageBucket: 'matche-39f37.firebasestorage.app',
     measurementId: 'G-649KC39JRX',
+    databaseURL: 'https://matche-39f37-default-rtdb.firebaseio.com',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
@@ -56,6 +57,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '351811632239',
     projectId: 'matche-39f37',
     storageBucket: 'matche-39f37.firebasestorage.app',
+    databaseURL: 'https://matche-39f37-default-rtdb.firebaseio.com',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
@@ -65,6 +67,7 @@ class DefaultFirebaseOptions {
     projectId: 'matche-39f37',
     storageBucket: 'matche-39f37.firebasestorage.app',
     iosBundleId: 'com.example.matcha',
+    databaseURL: 'https://matche-39f37-default-rtdb.firebaseio.com',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -74,6 +77,7 @@ class DefaultFirebaseOptions {
     projectId: 'matche-39f37',
     storageBucket: 'matche-39f37.firebasestorage.app',
     iosBundleId: 'com.example.matcha',
+    databaseURL: 'https://matche-39f37-default-rtdb.firebaseio.com',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
@@ -84,5 +88,6 @@ class DefaultFirebaseOptions {
     authDomain: 'matche-39f37.firebaseapp.com',
     storageBucket: 'matche-39f37.firebasestorage.app',
     measurementId: 'G-QKR8JQD8KL',
+    databaseURL: 'https://matche-39f37-default-rtdb.firebaseio.com',
   );
 }

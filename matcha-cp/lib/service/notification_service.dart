@@ -60,9 +60,6 @@ class NotificationService {
       // Handle foreground messages
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
-      // Handle background messages
-      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
       // Handle notification taps
       FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
 
@@ -301,11 +298,4 @@ class NotificationService {
   void dispose() {
     _badgeController.close();
   }
-}
-
-// Background message handler (must be top-level function)
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  print('Handling a background message: ${message.messageId}');
-  // Don't show local notification here as it's in background
 } 

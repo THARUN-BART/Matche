@@ -204,6 +204,54 @@ class FirestoreService {
         .snapshots();
   }
 
+  /// Search users by name or email
+  Future<List<Map<String, dynamic>>> searchUsers(String query) async {
+    try {
+      final queryLower = query.toLowerCase();
+      
+      // Search by name
+      final nameQuery = await _firestore
+          .collection('users')
+          .where('name', isGreaterThanOrEqualTo: queryLower)
+          .where('name', isLessThan: queryLower + '\uf8ff')
+          .limit(10)
+          .get();
+
+      // Search by email
+      final emailQuery = await _firestore
+          .collection('users')
+          .where('email', isGreaterThanOrEqualTo: queryLower)
+          .where('email', isLessThan: queryLower + '\uf8ff')
+          .limit(10)
+          .get();
+
+      // Combine and deduplicate results
+      final allDocs = <String, DocumentSnapshot>{};
+      
+      for (var doc in nameQuery.docs) {
+        if (doc.id != currentUserId) {
+          allDocs[doc.id] = doc;
+        }
+      }
+      
+      for (var doc in emailQuery.docs) {
+        if (doc.id != currentUserId) {
+          allDocs[doc.id] = doc;
+        }
+      }
+
+      // Convert to list of maps
+      return allDocs.values.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+    } catch (e) {
+      print('Error searching users: $e');
+      return [];
+    }
+  }
+
   /// Mark notification as read
   Future<void> markNotificationAsRead(String notificationId) async {
     await _firestore.collection('notifications').doc(notificationId).update({

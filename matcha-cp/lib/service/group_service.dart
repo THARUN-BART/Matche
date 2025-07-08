@@ -20,6 +20,9 @@ class GroupService {
       final user = _auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
+      // Generate unique join code
+      final joinCode = _generateJoinCode();
+
       final groupData = {
         'name': name,
         'description': description,
@@ -27,6 +30,8 @@ class GroupService {
         'category': category,
         'maxMembers': maxMembers,
         'imageUrl': imageUrl,
+        'joinCode': joinCode,
+        'joinCodeEnabled': true,
         'createdBy': user.uid,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -49,6 +54,20 @@ class GroupService {
       print('Error creating group: $e');
       rethrow;
     }
+  }
+
+  // Generate unique join code
+  String _generateJoinCode() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final random = DateTime.now().millisecondsSinceEpoch.toString();
+    final code = StringBuffer();
+    
+    for (int i = 0; i < 6; i++) {
+      final index = (random.hashCode + i) % chars.length;
+      code.write(chars[index]);
+    }
+    
+    return code.toString();
   }
 
   // Get user's groups (created or joined)
@@ -547,5 +566,259 @@ class GroupService {
       
       return groups;
     });
+  }
+
+  // Join group using join code
+  Future<bool> joinGroupWithCode(String joinCode) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      // Find group by join code
+      final groupQuery = await _firestore
+          .collection('groups')
+          .where('joinCode', isEqualTo: joinCode)
+          .where('joinCodeEnabled', isEqualTo: true)
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      if (groupQuery.docs.isEmpty) {
+        throw Exception('Invalid or disabled join code');
+      }
+
+      final groupDoc = groupQuery.docs.first;
+      final groupId = groupDoc.id;
+      final groupData = groupDoc.data();
+
+      // Check if user is already a member
+      final existingMember = await _firestore
+          .collection('groups')
+          .doc(groupId)
+          .collection('members')
+          .doc(user.uid)
+          .get();
+
+      if (existingMember.exists) {
+        throw Exception('You are already a member of this group');
+      }
+
+      // Check group capacity
+      final currentMembers = groupData['memberCount'] ?? 0;
+      final maxMembers = groupData['maxMembers'] ?? 10;
+
+      if (currentMembers >= maxMembers) {
+        throw Exception('Group is at maximum capacity');
+      }
+
+      // Add member
+      await _firestore.collection('groups').doc(groupId).collection('members').doc(user.uid).set({
+        'userId': user.uid,
+        'role': 'member',
+        'joinedAt': FieldValue.serverTimestamp(),
+        'isActive': true,
+        'joinedViaCode': true,
+      });
+
+      // Update member count
+      await _firestore.collection('groups').doc(groupId).update({
+        'memberCount': FieldValue.increment(1),
+      });
+
+      // Create notification for admins
+      await _notifyAdminsOfNewMember(groupId, user.uid, groupData['name']);
+
+      return true;
+    } catch (e) {
+      print('Error joining group with code: $e');
+      rethrow;
+    }
+  }
+
+  // Generate new join code (admin only)
+  Future<String?> generateNewJoinCode(String groupId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      // Check if user is admin
+      final memberDoc = await _firestore
+          .collection('groups')
+          .doc(groupId)
+          .collection('members')
+          .doc(user.uid)
+          .get();
+
+      if (!memberDoc.exists || memberDoc.data()?['role'] != 'admin') {
+        throw Exception('Only admins can generate join codes');
+      }
+
+      final newJoinCode = _generateJoinCode();
+      
+      await _firestore.collection('groups').doc(groupId).update({
+        'joinCode': newJoinCode,
+        'joinCodeEnabled': true,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      return newJoinCode;
+    } catch (e) {
+      print('Error generating new join code: $e');
+      return null;
+    }
+  }
+
+  // Toggle join code (enable/disable)
+  Future<bool> toggleJoinCode(String groupId, bool enabled) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      // Check if user is admin
+      final memberDoc = await _firestore
+          .collection('groups')
+          .doc(groupId)
+          .collection('members')
+          .doc(user.uid)
+          .get();
+
+      if (!memberDoc.exists || memberDoc.data()?['role'] != 'admin') {
+        throw Exception('Only admins can toggle join codes');
+      }
+
+      await _firestore.collection('groups').doc(groupId).update({
+        'joinCodeEnabled': enabled,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      return true;
+    } catch (e) {
+      print('Error toggling join code: $e');
+      return false;
+    }
+  }
+
+  // Send group invitation with notification
+  Future<bool> sendGroupInvitationWithNotification({
+    required String groupId,
+    required String targetUserId,
+    String? message,
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      // Check if user is admin
+      final memberDoc = await _firestore
+          .collection('groups')
+          .doc(groupId)
+          .collection('members')
+          .doc(user.uid)
+          .get();
+
+      if (!memberDoc.exists || memberDoc.data()?['role'] != 'admin') {
+        throw Exception('Only admins can send invitations');
+      }
+
+      // Get group details
+      final groupDoc = await _firestore.collection('groups').doc(groupId).get();
+      final groupData = groupDoc.data()!;
+
+      // Get admin user details
+      final adminUserDoc = await _firestore.collection('users').doc(user.uid).get();
+      final adminName = adminUserDoc.data()?['name'] ?? 'Admin';
+
+      // Create invitation
+      final invitationRef = await _firestore.collection('group_invitations').add({
+        'groupId': groupId,
+        'groupName': groupData['name'],
+        'invitedBy': user.uid,
+        'invitedBy': adminName,
+        'invitedTo': targetUserId,
+        'message': message ?? 'You have been invited to join this group!',
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+        'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 7))),
+      });
+
+      // Create notification for the invited user
+      await _firestore.collection('notifications').add({
+        'to': targetUserId,
+        'from': user.uid,
+        'title': 'Group Invitation',
+        'body': 'You have been invited to join "${groupData['name']}" by $adminName',
+        'type': 'group_invitation',
+        'groupId': groupId,
+        'invitationId': invitationRef.id,
+        'timestamp': FieldValue.serverTimestamp(),
+        'read': false,
+      });
+
+      return true;
+    } catch (e) {
+      print('Error sending group invitation: $e');
+      return false;
+    }
+  }
+
+  // Notify admins of new member
+  Future<void> _notifyAdminsOfNewMember(String groupId, String newMemberId, String groupName) async {
+    try {
+      // Get all admin members
+      final adminMembers = await _firestore
+          .collection('groups')
+          .doc(groupId)
+          .collection('members')
+          .where('role', isEqualTo: 'admin')
+          .get();
+
+      // Get new member details
+      final newMemberDoc = await _firestore.collection('users').doc(newMemberId).get();
+      final newMemberName = newMemberDoc.data()?['name'] ?? 'New Member';
+
+      // Send notification to each admin
+      for (var adminDoc in adminMembers.docs) {
+        final adminId = adminDoc.id;
+        if (adminId != newMemberId) { // Don't notify the new member themselves
+          await _firestore.collection('notifications').add({
+            'to': adminId,
+            'from': newMemberId,
+            'title': 'New Group Member',
+            'body': '$newMemberName has joined "$groupName"',
+            'type': 'new_group_member',
+            'groupId': groupId,
+            'timestamp': FieldValue.serverTimestamp(),
+            'read': false,
+          });
+        }
+      }
+    } catch (e) {
+      print('Error notifying admins: $e');
+    }
+  }
+
+  // Get group join code (admin only)
+  Future<String?> getGroupJoinCode(String groupId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      // Check if user is admin
+      final memberDoc = await _firestore
+          .collection('groups')
+          .doc(groupId)
+          .collection('members')
+          .doc(user.uid)
+          .get();
+
+      if (!memberDoc.exists || memberDoc.data()?['role'] != 'admin') {
+        throw Exception('Only admins can view join codes');
+      }
+
+      final groupDoc = await _firestore.collection('groups').doc(groupId).get();
+      return groupDoc.data()?['joinCode'];
+    } catch (e) {
+      print('Error getting join code: $e');
+      return null;
+    }
   }
 }

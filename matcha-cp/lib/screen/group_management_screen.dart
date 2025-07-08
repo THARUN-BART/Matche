@@ -3,444 +3,347 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../service/group_service.dart';
 import '../service/firestore_service.dart';
+import 'join_group_screen.dart';
 
 class GroupManagementScreen extends StatefulWidget {
   final String groupId;
-  
-  const GroupManagementScreen({super.key, required this.groupId});
+  final Map<String, dynamic> group;
+
+  const GroupManagementScreen({
+    super.key,
+    required this.groupId,
+    required this.group,
+  });
 
   @override
   State<GroupManagementScreen> createState() => _GroupManagementScreenState();
 }
 
-class _GroupManagementScreenState extends State<GroupManagementScreen> {
-  late GroupService _groupService;
-  late FirestoreService _firestoreService;
-  
-  Map<String, dynamic>? _groupDetails;
-  bool _isLoading = true;
-  bool _isAdmin = false;
+class _GroupManagementScreenState extends State<GroupManagementScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final TextEditingController _inviteMessageController = TextEditingController();
+  String? _joinCode;
+  bool _joinCodeEnabled = true;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _groupService = Provider.of<GroupService>(context, listen: false);
-      _firestoreService = Provider.of<FirestoreService>(context, listen: false);
-      _loadGroupDetails();
-    });
+    _tabController = TabController(length: 3, vsync: this);
+    _loadJoinCode();
   }
 
-  Future<void> _loadGroupDetails() async {
-    try {
-      final groupDetails = await _groupService.getGroupDetails(widget.groupId);
-      if (groupDetails != null) {
-        setState(() {
-          _groupDetails = groupDetails;
-        });
-        
-        // Check if current user is admin
-        _checkAdminStatus();
-      }
-    } catch (e) {
-      print('Error loading group details: $e');
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _inviteMessageController.dispose();
+    super.dispose();
   }
 
-  Future<void> _checkAdminStatus() async {
-    final currentUser = _firestoreService.currentUserId;
-    final memberDoc = await FirebaseFirestore.instance
-        .collection('groups')
-        .doc(widget.groupId)
-        .collection('members')
-        .doc(currentUser)
-        .get();
-    
+  Future<void> _loadJoinCode() async {
+    final groupService = Provider.of<GroupService>(context, listen: false);
+    final joinCode = await groupService.getGroupJoinCode(widget.groupId);
     if (mounted) {
       setState(() {
-        _isAdmin = memberDoc.data()?['role'] == 'admin';
+        _joinCode = joinCode;
+        _joinCodeEnabled = widget.group['joinCodeEnabled'] ?? true;
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (_groupDetails == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Group Management')),
-        body: const Center(child: Text('Group not found')),
-      );
-    }
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(_groupDetails!['name']),
+        title: Text('Manage ${widget.group['name']}'),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
-        actions: [
-          if (_isAdmin)
-            PopupMenuButton<String>(
-              onSelected: _handleMenuAction,
-              itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit),
-                      SizedBox(width: 8),
-                      Text('Edit Group'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'invite',
-                  child: Row(
-                    children: [
-                      Icon(Icons.person_add),
-                      SizedBox(width: 8),
-                      Text('Send Invite'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'transfer_admin',
-                  child: Row(
-                    children: [
-                      Icon(Icons.swap_horiz),
-                      SizedBox(width: 8),
-                      Text('Transfer Admin'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('Delete Group', style: TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Members'),
+            Tab(text: 'Invite'),
+            Tab(text: 'Settings'),
+          ],
+          indicatorColor: Colors.white,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildMembersTab(),
+          _buildInviteTab(),
+          _buildSettingsTab(),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Group Info Card
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _groupDetails!['name'],
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _groupDetails!['description'],
-                      style: const TextStyle(fontSize: 16, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
+    );
+  }
+
+  Widget _buildMembersTab() {
+    final groupService = Provider.of<GroupService>(context);
+    
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: groupService.getGroupMembers(widget.groupId),
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return const Center(child: Text('Error loading members'));
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final members = snapshot.data ?? [];
+
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: members.length,
+          itemBuilder: (context, index) {
+            final member = members[index];
+            return _buildMemberCard(member);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildMemberCard(Map<String, dynamic> member) {
+    final isAdmin = member['role'] == 'admin';
+    final isCurrentUser = member['userId'] == Provider.of<FirestoreService>(context, listen: false).currentUserId;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: isAdmin ? Colors.green : Colors.grey,
+          child: Text(
+            (member['name'] as String).isNotEmpty ? member['name'][0].toUpperCase() : '?',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+        ),
+        title: Text(
+          member['name'] ?? 'Unknown',
+          style: TextStyle(fontWeight: isAdmin ? FontWeight.bold : FontWeight.normal),
+        ),
+        subtitle: Text(
+          isAdmin ? 'Admin' : 'Member',
+          style: TextStyle(color: isAdmin ? Colors.green : Colors.grey),
+        ),
+        trailing: isAdmin || isCurrentUser
+            ? null
+            : PopupMenuButton<String>(
+                onSelected: (value) => _handleMemberAction(value, member),
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'remove',
+                    child: Row(
                       children: [
-                        Icon(Icons.category, color: Colors.green),
-                        const SizedBox(width: 8),
-                        Text('Category: ${_groupDetails!['category']}'),
+                        Icon(Icons.remove_circle, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text('Remove'),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Row(
+                  ),
+                  const PopupMenuItem(
+                    value: 'make_admin',
+                    child: Row(
                       children: [
-                        Icon(Icons.people, color: Colors.blue),
-                        const SizedBox(width: 8),
-                        Text('Members: ${_groupDetails!['memberCount']}/${_groupDetails!['maxMembers']}'),
+                        Icon(Icons.admin_panel_settings, color: Colors.green),
+                        SizedBox(width: 8),
+                        Text('Make Admin'),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: (_groupDetails!['skills'] as List<dynamic>).map((skill) {
-                        return Chip(
-                          label: Text(skill.toString()),
-                          backgroundColor: Colors.green.withOpacity(0.1),
-                        );
-                      }).toList(),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildInviteTab() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Join Code Section
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Join Code',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  if (_joinCode != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey[300]!),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _joinCode!,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: _copyJoinCode,
+                            icon: const Icon(Icons.copy),
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _generateNewJoinCode,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Generate New Code'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _toggleJoinCode,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: _joinCodeEnabled ? Colors.orange : Colors.green,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: Text(_joinCodeEnabled ? 'Disable' : 'Enable'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ] else ...[
+                    const Text('Loading join code...'),
                   ],
-                ),
+                ],
               ),
             ),
-            
-            const SizedBox(height: 20),
-            
-            // Members Section
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Members',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                if (_isAdmin)
+          ),
+          const SizedBox(height: 24),
+          
+          // Invite Users Section
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Invite Users',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Search and invite users to join this group',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
                   ElevatedButton.icon(
-                    onPressed: _showAddMemberDialog,
+                    onPressed: _showUserSearch,
                     icon: const Icon(Icons.person_add),
-                    label: const Text('Add Member'),
+                    label: const Text('Search Users'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       foregroundColor: Colors.white,
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
-            
-            const SizedBox(height: 12),
-            
-            // Members List
-            StreamBuilder<List<Map<String, dynamic>>>(
-              stream: _groupService.getGroupMembers(widget.groupId),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return const Text('Error loading members');
-                }
-                
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                
-                final members = snapshot.data!;
-                
-                return ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: members.length,
-                  itemBuilder: (context, index) {
-                    final member = members[index];
-                    return Card(
-                      child: ListTile(
-                        leading: CircleAvatar(
-                          child: Text(member['name'][0].toUpperCase()),
-                        ),
-                        title: Text(member['name']),
-                        subtitle: Text(member['email']),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (member['role'] == 'admin')
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: const Text(
-                                  'Admin',
-                                  style: TextStyle(color: Colors.white, fontSize: 12),
-                                ),
-                              ),
-                            if (_isAdmin && member['role'] != 'admin')
-                              IconButton(
-                                icon: const Icon(Icons.remove_circle, color: Colors.red),
-                                onPressed: () => _removeMember(member['userId']),
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
+          ),
+          const SizedBox(height: 24),
+          
+          // Quick Join Section
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Quick Join',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Share this code with others to let them join directly',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: _shareJoinCode,
+                    icon: const Icon(Icons.share),
+                    label: const Text('Share Join Code'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  void _handleMenuAction(String action) {
+  Widget _buildSettingsTab() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.edit, color: Colors.blue),
+              title: const Text('Edit Group Details'),
+              subtitle: const Text('Change name, description, and settings'),
+              onTap: _editGroupDetails,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.delete, color: Colors.red),
+              title: const Text('Delete Group'),
+              subtitle: const Text('Permanently delete this group'),
+              onTap: _deleteGroup,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleMemberAction(String action, Map<String, dynamic> member) {
     switch (action) {
-      case 'edit':
-        _showEditGroupDialog();
+      case 'remove':
+        _removeMember(member['userId']);
         break;
-      case 'invite':
-        _showSendInviteDialog();
+      case 'make_admin':
+        _makeAdmin(member['userId']);
         break;
-      case 'transfer_admin':
-        _showTransferAdminDialog();
-        break;
-      case 'delete':
-        _showDeleteGroupDialog();
-        break;
-    }
-  }
-
-  void _showEditGroupDialog() {
-    final nameController = TextEditingController(text: _groupDetails!['name']);
-    final descriptionController = TextEditingController(text: _groupDetails!['description']);
-    final maxMembersController = TextEditingController(text: _groupDetails!['maxMembers'].toString());
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit Group'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'Group Name'),
-              ),
-              TextField(
-                controller: descriptionController,
-                decoration: const InputDecoration(labelText: 'Description'),
-                maxLines: 3,
-              ),
-              TextField(
-                controller: maxMembersController,
-                decoration: const InputDecoration(labelText: 'Max Members'),
-                keyboardType: TextInputType.number,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _updateGroup(
-                name: nameController.text,
-                description: descriptionController.text,
-                maxMembers: int.tryParse(maxMembersController.text),
-              );
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _updateGroup({
-    String? name,
-    String? description,
-    int? maxMembers,
-  }) async {
-    try {
-      final success = await _groupService.updateGroup(
-        groupId: widget.groupId,
-        name: name,
-        description: description,
-        maxMembers: maxMembers,
-      );
-      
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Group updated successfully')),
-        );
-        _loadGroupDetails();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update group')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    }
-  }
-
-  void _showAddMemberDialog() {
-    final emailController = TextEditingController();
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Member'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: emailController,
-              decoration: const InputDecoration(
-                labelText: 'User Email',
-                hintText: 'Enter user email',
-              ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _addMemberByEmail(emailController.text);
-            },
-            child: const Text('Add'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _addMemberByEmail(String email) async {
-    try {
-      // Find user by email
-      final userQuery = await FirebaseFirestore.instance
-          .collection('users')
-          .where('email', isEqualTo: email)
-          .limit(1)
-          .get();
-      
-      if (userQuery.docs.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('User not found')),
-        );
-        return;
-      }
-      
-      final userId = userQuery.docs.first.id;
-      final success = await _groupService.addMemberToGroup(widget.groupId, userId);
-      
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Member added successfully')),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to add member')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
     }
   }
 
@@ -449,7 +352,7 @@ class _GroupManagementScreenState extends State<GroupManagementScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Remove Member'),
-        content: const Text('Are you sure you want to remove this member?'),
+        content: const Text('Are you sure you want to remove this member from the group?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -463,10 +366,11 @@ class _GroupManagementScreenState extends State<GroupManagementScreen> {
         ],
       ),
     );
-    
+
     if (confirmed == true) {
       try {
-        final success = await _groupService.removeMemberFromGroup(widget.groupId, userId);
+        final groupService = Provider.of<GroupService>(context, listen: false);
+        final success = await groupService.removeMemberFromGroup(widget.groupId, userId);
         
         if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -485,31 +389,308 @@ class _GroupManagementScreenState extends State<GroupManagementScreen> {
     }
   }
 
-  void _showSendInviteDialog() {
-    final emailController = TextEditingController();
-    final messageController = TextEditingController();
-    
+  Future<void> _makeAdmin(String userId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Make Admin'),
+        content: const Text('Are you sure you want to make this member an admin?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Make Admin', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final groupService = Provider.of<GroupService>(context, listen: false);
+        final success = await groupService.transferAdminRole(widget.groupId, userId);
+        
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Admin role transferred successfully')),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to transfer admin role')),
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _copyJoinCode() async {
+    if (_joinCode != null) {
+      // You can implement clipboard functionality here
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Join code copied: $_joinCode')),
+      );
+    }
+  }
+
+  Future<void> _generateNewJoinCode() async {
+    try {
+      final groupService = Provider.of<GroupService>(context, listen: false);
+      final newCode = await groupService.generateNewJoinCode(widget.groupId);
+      
+      if (newCode != null) {
+        setState(() {
+          _joinCode = newCode;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('New join code generated: $newCode')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to generate new join code')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+
+  Future<void> _toggleJoinCode() async {
+    try {
+      final groupService = Provider.of<GroupService>(context, listen: false);
+      final success = await groupService.toggleJoinCode(widget.groupId, !_joinCodeEnabled);
+      
+      if (success) {
+        setState(() {
+          _joinCodeEnabled = !_joinCodeEnabled;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Join code ${_joinCodeEnabled ? 'enabled' : 'disabled'}')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to toggle join code')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
+
+  void _showUserSearch() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => UserSearchScreen(groupId: widget.groupId),
+      ),
+    );
+  }
+
+  void _shareJoinCode() {
+    if (_joinCode != null) {
+      // You can implement sharing functionality here
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Share join code: $_joinCode')),
+      );
+    }
+  }
+
+  void _editGroupDetails() {
+    // Implement group editing functionality
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Edit group details coming soon...')),
+    );
+  }
+
+  Future<void> _deleteGroup() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Group'),
+        content: const Text('Are you sure you want to delete this group? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final groupService = Provider.of<GroupService>(context, listen: false);
+        final success = await groupService.deleteGroup(widget.groupId);
+        
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Group deleted successfully')),
+          );
+          Navigator.pop(context);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to delete group')),
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+}
+
+// User Search Screen for inviting users
+class UserSearchScreen extends StatefulWidget {
+  final String groupId;
+
+  const UserSearchScreen({super.key, required this.groupId});
+
+  @override
+  State<UserSearchScreen> createState() => _UserSearchScreenState();
+}
+
+class _UserSearchScreenState extends State<UserSearchScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _messageController = TextEditingController();
+  List<Map<String, dynamic>> _searchResults = [];
+  bool _isSearching = false;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _messageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Invite Users'),
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                labelText: 'Search users',
+                hintText: 'Enter name or email',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: IconButton(
+                  onPressed: _searchUsers,
+                  icon: const Icon(Icons.search),
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onSubmitted: (_) => _searchUsers(),
+            ),
+          ),
+          Expanded(
+            child: _isSearching
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _searchResults.length,
+                    itemBuilder: (context, index) {
+                      final user = _searchResults[index];
+                      return _buildUserCard(user);
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserCard(Map<String, dynamic> user) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundImage: user['avatarUrl'] != null ? NetworkImage(user['avatarUrl']) : null,
+          child: user['avatarUrl'] == null
+              ? Text((user['name'] as String).isNotEmpty ? user['name'][0].toUpperCase() : '?')
+              : null,
+        ),
+        title: Text(user['name'] ?? 'Unknown'),
+        subtitle: Text(user['email'] ?? ''),
+        trailing: ElevatedButton(
+          onPressed: () => _showInviteDialog(user),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Invite'),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _searchUsers() async {
+    final query = _searchController.text.trim();
+    if (query.isEmpty) return;
+
+    setState(() {
+      _isSearching = true;
+    });
+
+    try {
+      final firestoreService = Provider.of<FirestoreService>(context, listen: false);
+      final results = await firestoreService.searchUsers(query);
+      
+      setState(() {
+        _searchResults = results;
+        _isSearching = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isSearching = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error searching users: $e')),
+      );
+    }
+  }
+
+  void _showInviteDialog(Map<String, dynamic> user) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Send Invitation'),
+        title: Text('Invite ${user['name']}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const Text('Add a personal message (optional):'),
+            const SizedBox(height: 8),
             TextField(
-              controller: emailController,
+              controller: _messageController,
               decoration: const InputDecoration(
-                labelText: 'User Email',
-                hintText: 'Enter user email',
-              ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: messageController,
-              decoration: const InputDecoration(
-                labelText: 'Message (optional)',
-                hintText: 'Add a personal message',
+                hintText: 'Enter your message...',
+                border: OutlineInputBorder(),
               ),
               maxLines: 3,
             ),
@@ -521,162 +702,38 @@ class _GroupManagementScreenState extends State<GroupManagementScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _sendInvitation(emailController.text, messageController.text);
-            },
-            child: const Text('Send'),
+            onPressed: () => _sendInvitation(user),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('Send Invitation', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _sendInvitation(String email, String message) async {
+  Future<void> _sendInvitation(Map<String, dynamic> user) async {
     try {
-      // Find user by email
-      final userQuery = await FirebaseFirestore.instance
-          .collection('users')
-          .where('email', isEqualTo: email)
-          .limit(1)
-          .get();
-      
-      if (userQuery.docs.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('User not found')),
-        );
-        return;
-      }
-      
-      final userId = userQuery.docs.first.id;
-      final success = await _groupService.sendGroupInvitation(
+      final groupService = Provider.of<GroupService>(context, listen: false);
+      final success = await groupService.sendGroupInvitationWithNotification(
         groupId: widget.groupId,
-        targetUserId: userId,
-        message: message.isEmpty ? null : message,
+        targetUserId: user['id'],
+        message: _messageController.text.trim(),
       );
-      
+
+      Navigator.pop(context); // Close dialog
+
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invitation sent successfully')),
+          SnackBar(content: Text('Invitation sent to ${user['name']}')),
         );
+        _messageController.clear();
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to send invitation')),
         );
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    }
-  }
-
-  void _showTransferAdminDialog() {
-    // Get current members for selection
-    StreamBuilder<List<Map<String, dynamic>>>(
-      stream: _groupService.getGroupMembers(widget.groupId),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const AlertDialog(
-            content: Center(child: CircularProgressIndicator()),
-          );
-        }
-        
-        final members = snapshot.data!.where((m) => m['role'] != 'admin').toList();
-        
-        return AlertDialog(
-          title: const Text('Transfer Admin Role'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: members.length,
-              itemBuilder: (context, index) {
-                final member = members[index];
-                return ListTile(
-                  title: Text(member['name']),
-                  subtitle: Text(member['email']),
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await _transferAdminRole(member['userId']);
-                  },
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _transferAdminRole(String newAdminUserId) async {
-    try {
-      final success = await _groupService.transferAdminRole(widget.groupId, newAdminUserId);
-      
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Admin role transferred successfully')),
-        );
-        _checkAdminStatus();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to transfer admin role')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    }
-  }
-
-  void _showDeleteGroupDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Group'),
-        content: const Text(
-          'Are you sure you want to delete this group? This action cannot be undone.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _deleteGroup();
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _deleteGroup() async {
-    try {
-      final success = await _groupService.deleteGroup(widget.groupId);
-      
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Group deleted successfully')),
-        );
-        Navigator.pop(context); // Go back to previous screen
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to delete group')),
-        );
-      }
-    } catch (e) {
+      Navigator.pop(context); // Close dialog
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e')),
       );

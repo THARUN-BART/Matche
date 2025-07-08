@@ -11,32 +11,57 @@ import 'package:matcha/service/realtime_chat_service.dart';
 import 'package:matcha/splash_screen.dart';
 import 'package:provider/provider.dart';
 
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+Future _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Check if Firebase is already initialized before initializing
+  if (Firebase.apps.isEmpty) {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  }
   FirebaseDatabase.instance.databaseURL = 'https://matche-39f37-default-rtdb.firebaseio.com';
   // Handle background message
 }
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   
-  // Initialize Firebase Realtime Database
-  FirebaseDatabase.instance.databaseURL = 'https://matche-39f37-default-rtdb.firebaseio.com';
-  
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  await NotificationService().initialize();
-  runApp(MultiProvider(
-    providers: [
-      Provider<FirestoreService>(create: (_) => FirestoreService()),
-      Provider<NotificationService>(create: (_) => NotificationService()),
-      Provider<MatchingService>(create: (context) => MatchingService(context.read<FirestoreService>())),
-      Provider<GroupService>(create: (_) => GroupService()),
-      Provider<RealtimeChatService>(create: (_) => RealtimeChatService()),
-    ],
-    child: const Matcha(),
-  ),
-  );
+  try {
+    // Initialize Firebase only if not already initialized
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    }
+    
+    // Initialize Firebase Realtime Database
+    FirebaseDatabase.instance.databaseURL = 'https://matche-39f37-default-rtdb.firebaseio.com';
+    
+    // Register background message handler after Firebase is initialized
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    
+    // Initialize notification service
+    await NotificationService().initialize();
+    
+    runApp(MultiProvider(
+      providers: [
+        Provider<FirestoreService>(create: (_) => FirestoreService()),
+        Provider<NotificationService>(create: (_) => NotificationService()),
+        Provider<MatchingService>(create: (context) => MatchingService(context.read<FirestoreService>())),
+        Provider<GroupService>(create: (_) => GroupService()),
+        Provider<RealtimeChatService>(create: (_) => RealtimeChatService()),
+      ],
+      child: const Matcha(),
+    ));
+  } catch (e) {
+    print('Error initializing Firebase: $e');
+    // Run app even if Firebase fails to initialize
+    runApp(MultiProvider(
+      providers: [
+        Provider<FirestoreService>(create: (_) => FirestoreService()),
+        Provider<NotificationService>(create: (_) => NotificationService()),
+        Provider<MatchingService>(create: (context) => MatchingService(context.read<FirestoreService>())),
+        Provider<GroupService>(create: (_) => GroupService()),
+        Provider<RealtimeChatService>(create: (_) => RealtimeChatService()),
+      ],
+      child: const Matcha(),
+    ));
+  }
 }
 
 class Matcha extends StatelessWidget {

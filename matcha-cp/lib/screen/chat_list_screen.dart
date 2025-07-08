@@ -5,6 +5,7 @@ import '../service/realtime_chat_service.dart';
 import '../service/firestore_service.dart';
 import 'realtime_chat_screen.dart';
 import 'group_chat_screen.dart';
+import 'join_group_screen.dart';
 import '../widget/group_card.dart';
 
 class ChatListScreen extends StatefulWidget {
@@ -482,17 +483,7 @@ class CreateGroupScreen extends StatelessWidget {
   }
 }
 
-class JoinGroupScreen extends StatelessWidget {
-  const JoinGroupScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Join Group')),
-      body: const Center(child: Text('Join group coming soon...')),
-    );
-  }
-}
+// This is now imported from join_group_screen.dart
 
 class GroupChatScreen extends StatelessWidget {
   final String groupId;

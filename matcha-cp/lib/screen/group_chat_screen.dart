@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'dart:async';
 import '../service/realtime_chat_service.dart';
 import '../service/firestore_service.dart';
+import '../widget/typing_indicator.dart';
+import '../widget/online_avatar.dart';
 
 class GroupChatScreen extends StatefulWidget {
   final String groupId;
@@ -27,7 +29,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   
   bool _isTyping = false;
   Timer? _typingTimer;
-  Map<String, bool> _typingUsers = {};
+  Map<String, TypingStatus> _typingUsers = {};
   List<ChatMessage> _messages = [];
   bool _isLoading = true;
   Map<String, String> _userNames = {};
@@ -38,6 +40,24 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     _chatService = Provider.of<RealtimeChatService>(context, listen: false);
     _firestoreService = Provider.of<FirestoreService>(context, listen: false);
     _initializeGroupChat();
+    _setOnlineStatus(true);
+  }
+
+  @override
+  void dispose() {
+    _typingTimer?.cancel();
+    _messageController.dispose();
+    _scrollController.dispose();
+    _setOnlineStatus(false);
+    super.dispose();
+  }
+
+  Future<void> _setOnlineStatus(bool isOnline) async {
+    try {
+      await _chatService.setOnlineStatus(isOnline);
+    } catch (e) {
+      print('Error setting online status: $e');
+    }
   }
 
   Future<void> _initializeGroupChat() async {
@@ -61,9 +81,15 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     if (_isLoading) {
       return Scaffold(
         appBar: AppBar(
-          title: Text(widget.groupName),
+          title: _buildAppBarTitle(),
           backgroundColor: Colors.green,
           foregroundColor: Colors.white,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.info),
+              onPressed: _showGroupInfo,
+            ),
+          ],
         ),
         body: const Center(child: CircularProgressIndicator()),
       );
@@ -71,43 +97,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.groupName),
-            StreamBuilder<Map<String, bool>>(
-              stream: _chatService.getTypingStatus(widget.groupId, isGroup: true),
-              builder: (context, snapshot) {
-                if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-                  final typingUsers = snapshot.data!;
-                  final typingNames = <String>[];
-                  
-                  typingUsers.forEach((userId, isTyping) {
-                    if (isTyping && userId != _firestoreService.currentUserId) {
-                      typingNames.add(_userNames[userId] ?? 'Someone');
-                    }
-                  });
-                  
-                  if (typingNames.isNotEmpty) {
-                    final typingText = typingNames.length == 1 
-                        ? '${typingNames.first} is typing...'
-                        : '${typingNames.take(2).join(', ')} are typing...';
-                    
-                    return Text(
-                      typingText,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white70,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    );
-                  }
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-          ],
-        ),
+        title: _buildAppBarTitle(),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         actions: [
@@ -170,10 +160,98 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
             ),
           ),
           
+          // Typing indicator
+          StreamBuilder<Map<String, TypingStatus>>(
+            stream: _chatService.getTypingStatus(widget.groupId, isGroup: true),
+            builder: (context, snapshot) {
+              if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                final typingUsers = snapshot.data!;
+                final typingUserNames = <String>[];
+                
+                for (var entry in typingUsers.entries) {
+                  if (entry.value.shouldShowTyping) {
+                    typingUserNames.add(entry.key);
+                  }
+                }
+                
+                if (typingUserNames.isNotEmpty) {
+                  String typingText;
+                  if (typingUserNames.length == 1) {
+                    typingText = '${typingUserNames.first} is typing...';
+                  } else if (typingUserNames.length == 2) {
+                    typingText = '${typingUserNames.first} and ${typingUserNames.last} are typing...';
+                  } else {
+                    typingText = '${typingUserNames.first} and ${typingUserNames.length - 1} others are typing...';
+                  }
+                  
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      children: [
+                        const TypingIndicator(color: Colors.grey, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            typingText,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+          
           // Message input
           _buildMessageInput(),
         ],
       ),
+    );
+  }
+
+  Widget _buildAppBarTitle() {
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.group,
+            color: Colors.green,
+            size: 24,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.groupName,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              Text(
+                'Group',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.white70,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -184,9 +262,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
         final userData = snapshot.data?.data() as Map<String, dynamic>?;
         final senderName = userData?['name'] ?? 'Unknown User';
         final userAvatar = userData?['avatarUrl'];
-        
-        // Cache user names for typing indicators
-        _userNames[message.senderId] = senderName;
 
         return Align(
           alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -203,12 +278,11 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                     padding: const EdgeInsets.only(left: 12, bottom: 4),
                     child: Row(
                       children: [
-                        CircleAvatar(
+                        OnlineAvatar(
+                          imageUrl: userAvatar,
+                          name: senderName,
                           radius: 12,
-                          backgroundImage: userAvatar != null ? NetworkImage(userAvatar) : null,
-                          child: userAvatar == null
-                              ? Text(senderName[0].toUpperCase(), style: const TextStyle(fontSize: 10))
-                              : null,
+                          isOnline: false, // You can implement group member online status here
                         ),
                         const SizedBox(width: 8),
                         Text(
@@ -231,11 +305,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Reply to message (if any)
-                      if (message.replyTo != null)
-                        _buildReplyPreview(message.replyTo!),
-                      
-                      // Message text
                       Text(
                         message.text,
                         style: TextStyle(
@@ -243,23 +312,24 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                           fontSize: 16,
                         ),
                       ),
-                      
                       const SizedBox(height: 4),
-                      
-                      // Message status and time
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             _formatTime(message.timestamp),
                             style: TextStyle(
-                              color: isMe ? Colors.white70 : Colors.grey[600],
                               fontSize: 12,
+                              color: isMe ? Colors.white70 : Colors.grey[600],
                             ),
                           ),
                           if (isMe) ...[
                             const SizedBox(width: 4),
-                            _buildMessageStatus(message),
+                            Icon(
+                              message.status == 'read' ? Icons.done_all : Icons.done,
+                              size: 16,
+                              color: message.status == 'read' ? Colors.blue : Colors.white70,
+                            ),
                           ],
                         ],
                       ),
@@ -272,70 +342,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
         );
       },
     );
-  }
-
-  Widget _buildReplyPreview(String replyToMessageId) {
-    // Find the replied message
-    final repliedMessage = _messages.firstWhere(
-      (msg) => msg.messageId == replyToMessageId,
-      orElse: () => ChatMessage(
-        messageId: '',
-        senderId: '',
-        text: 'Message not found',
-        timestamp: DateTime.now(),
-        type: 'text',
-        status: 'sent',
-        readBy: [],
-      ),
-    );
-
-    return FutureBuilder<DocumentSnapshot>(
-      future: _firestoreService.getUserData(repliedMessage.senderId),
-      builder: (context, snapshot) {
-        final repliedUserName = snapshot.hasData
-            ? snapshot.data?.get('name') ?? 'Unknown'
-            : 'Unknown';
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.black12,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Reply to $repliedUserName',
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey,
-                ),
-              ),
-              Text(
-                repliedMessage.text,
-                style: const TextStyle(fontSize: 12),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildMessageStatus(ChatMessage message) {
-    if (message.status == 'sent') {
-      return const Icon(Icons.check, size: 16, color: Colors.white70);
-    } else if (message.status == 'delivered') {
-      return const Icon(Icons.done_all, size: 16, color: Colors.white70);
-    } else if (message.status == 'read') {
-      return const Icon(Icons.done_all, size: 16, color: Colors.blue);
-    }
-    return const SizedBox.shrink();
   }
 
   Widget _buildMessageInput() {
@@ -376,6 +382,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
               ),
               maxLines: null,
               onChanged: _onMessageChanged,
+              onSubmitted: (_) => _sendMessage(),
             ),
           ),
           
@@ -436,11 +443,9 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   }
 
   void _showGroupInfo() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => GroupInfoScreen(groupId: widget.groupId),
-      ),
+    // Navigate to group info screen
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Group info - Coming soon!')),
     );
   }
 
@@ -494,147 +499,5 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     } else {
       return '${time.day}/${time.month}/${time.year}';
     }
-  }
-
-  @override
-  void dispose() {
-    _typingTimer?.cancel();
-    _messageController.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
-}
-
-// Group Info Screen
-class GroupInfoScreen extends StatelessWidget {
-  final String groupId;
-
-  const GroupInfoScreen({super.key, required this.groupId});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Group Info'),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
-      ),
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance.collection('groups').doc(groupId).snapshots(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final groupData = snapshot.data!.data() as Map<String, dynamic>?;
-          if (groupData == null) {
-            return const Center(child: Text('Group not found'));
-          }
-
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              // Group avatar and name
-              Center(
-                child: Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 50,
-                      backgroundImage: groupData['avatarUrl'] != null 
-                          ? NetworkImage(groupData['avatarUrl'])
-                          : null,
-                      child: groupData['avatarUrl'] == null
-                          ? Text(
-                              (groupData['name'] ?? 'G')[0].toUpperCase(),
-                              style: const TextStyle(fontSize: 32),
-                            )
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      groupData['name'] ?? 'Unknown Group',
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                    ),
-                    if (groupData['description'] != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        groupData['description'],
-                        style: const TextStyle(fontSize: 16, color: Colors.grey),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: 32),
-              
-              // Group members
-              StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('groups')
-                    .doc(groupId)
-                    .collection('members')
-                    .snapshots(),
-                builder: (context, membersSnapshot) {
-                  if (!membersSnapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  final members = membersSnapshot.data!.docs;
-                  
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Members (${members.length})',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 16),
-                      ...members.map((memberDoc) {
-                        return FutureBuilder<DocumentSnapshot>(
-                          future: FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(memberDoc.id)
-                              .get(),
-                          builder: (context, userSnapshot) {
-                            if (!userSnapshot.hasData) {
-                              return const ListTile(
-                                leading: CircleAvatar(),
-                                title: Text('Loading...'),
-                              );
-                            }
-
-                            final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
-                            final userName = userData?['name'] ?? 'Unknown User';
-                            final isAdmin = groupData['adminId'] == memberDoc.id;
-
-                            return ListTile(
-                              leading: CircleAvatar(
-                                backgroundImage: userData?['avatarUrl'] != null 
-                                    ? NetworkImage(userData!['avatarUrl'])
-                                    : null,
-                                child: userData?['avatarUrl'] == null
-                                    ? Text(userName[0].toUpperCase())
-                                    : null,
-                              ),
-                              title: Text(userName),
-                              subtitle: isAdmin ? const Text('Admin') : null,
-                              trailing: isAdmin 
-                                  ? const Icon(Icons.admin_panel_settings, color: Colors.green)
-                                  : null,
-                            );
-                          },
-                        );
-                      }).toList(),
-                    ],
-                  );
-                },
-              ),
-            ],
-          );
-        },
-      ),
-    );
   }
 } 

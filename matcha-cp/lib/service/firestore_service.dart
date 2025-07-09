@@ -25,6 +25,19 @@ class FirestoreService {
     return _firestore.collection('users').doc(userId).get();
   }
 
+  /// Get user by email
+  Future<DocumentSnapshot?> getUserByEmail(String email) async {
+    final query = await _firestore
+        .collection('users')
+        .where('email', isEqualTo: email)
+        .limit(1)
+        .get();
+    if (query.docs.isNotEmpty) {
+      return query.docs.first;
+    }
+    return null;
+  }
+
   /// Get all users except current user
   Stream<QuerySnapshot> getAllUsersExceptCurrent() {
     return _firestore
@@ -118,23 +131,42 @@ class FirestoreService {
 
   /// Send a connection request
   Future<void> sendConnectionRequest(String fromId, String toId) async {
-    // Prevent re-sending if already sent
-    final sentSnapshot = await _firestore
-        .collection('users')
-        .doc(fromId)
-        .collection('sentRequests')
-        .doc(toId)
+    // Check if there's already a pending request
+    final existingRequest = await _firestore
+        .collection('connectionRequests')
+        .where('from', isEqualTo: fromId)
+        .where('to', isEqualTo: toId)
+        .where('status', isEqualTo: 'pending')
         .get();
 
-    if (sentSnapshot.exists) return;
+    if (existingRequest.docs.isNotEmpty) {
+      throw Exception('Connection request already sent');
+    }
 
-    // Add to global connectionRequests
-    await _firestore.collection('connectionRequests').add({
-      'from': fromId,
-      'to': toId,
-      'status': 'pending',
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+    // Check if there's a rejected request and allow re-sending
+    final rejectedRequest = await _firestore
+        .collection('connectionRequests')
+        .where('from', isEqualTo: fromId)
+        .where('to', isEqualTo: toId)
+        .where('status', isEqualTo: 'rejected')
+        .get();
+
+    if (rejectedRequest.docs.isNotEmpty) {
+      // Update the rejected request to pending
+      await _firestore.collection('connectionRequests').doc(rejectedRequest.docs.first.id).update({
+        'status': 'pending',
+        'timestamp': FieldValue.serverTimestamp(),
+        'rejectedAt': FieldValue.delete(),
+      });
+    } else {
+      // Create new request
+      await _firestore.collection('connectionRequests').add({
+        'from': fromId,
+        'to': toId,
+        'status': 'pending',
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    }
 
     // Track sent request in sender's record
     await _firestore
@@ -143,9 +175,20 @@ class FirestoreService {
         .collection('sentRequests')
         .doc(toId)
         .set({'timestamp': FieldValue.serverTimestamp()});
+
+    // Send notification to recipient
+    await sendNotificationToUser(
+      toUserId: toId,
+      title: 'New Connection Request',
+      body: 'Someone wants to connect with you',
+      data: {
+        'type': 'connection_request',
+        'fromUserId': fromId,
+      },
+    );
   }
 
-  /// Get sent connection requests
+  /// Get sent connection requests (including rejected ones)
   Stream<QuerySnapshot> getSentConnectionRequests() {
     return _firestore
         .collection('users')
@@ -163,24 +206,157 @@ class FirestoreService {
         .snapshots();
   }
 
+  /// Get rejected connection requests (for re-sending)
+  Stream<QuerySnapshot> getRejectedConnectionRequests() {
+    return _firestore
+        .collection('connectionRequests')
+        .where('from', isEqualTo: currentUserId)
+        .where('status', isEqualTo: 'rejected')
+        .snapshots();
+  }
+
   /// Accept a connection request
   Future<void> acceptConnectionRequest(String requestId, String fromUserId) async {
-    // Add mutual connection
-    await addConnection(fromUserId);
+    try {
+      // Get the request document first to verify it exists and is pending
+      final requestDoc = await _firestore.collection('connectionRequests').doc(requestId).get();
+      if (!requestDoc.exists) {
+        throw Exception('Connection request not found');
+      }
+      
+      final requestData = requestDoc.data();
+      if (requestData?['status'] != 'pending') {
+        throw Exception('Connection request is no longer pending');
+      }
 
-    // Update the request status
-    await _firestore.collection('connectionRequests').doc(requestId).update({
-      'status': 'accepted',
-      'acceptedAt': FieldValue.serverTimestamp(),
-    });
+      // Use a batch to ensure atomic operations
+      final batch = _firestore.batch();
+
+      // Add mutual connection
+      batch.set(
+        _firestore
+            .collection('users')
+            .doc(currentUserId)
+            .collection('connections')
+            .doc(fromUserId),
+        {'timestamp': FieldValue.serverTimestamp()},
+      );
+
+      batch.set(
+        _firestore
+            .collection('users')
+            .doc(fromUserId)
+            .collection('connections')
+            .doc(currentUserId),
+        {'timestamp': FieldValue.serverTimestamp()},
+      );
+
+      // Update the request status
+      batch.update(
+        _firestore.collection('connectionRequests').doc(requestId),
+        {
+          'status': 'accepted',
+          'acceptedAt': FieldValue.serverTimestamp(),
+        },
+      );
+
+      // Remove from sent requests collection
+      batch.delete(
+        _firestore
+            .collection('users')
+            .doc(fromUserId)
+            .collection('sentRequests')
+            .doc(currentUserId),
+      );
+
+      // Commit all changes
+      await batch.commit();
+
+      // Send notification to the requester that their request was accepted
+      await sendNotificationToUser(
+        toUserId: fromUserId,
+        title: 'Connection Accepted!',
+        body: 'Your connection request has been accepted',
+        data: {
+          'type': 'connection_accepted',
+          'acceptedBy': currentUserId,
+        },
+      );
+
+      // Send notification to the accepter
+      await sendNotificationToUser(
+        toUserId: currentUserId,
+        title: 'New Connection',
+        body: 'You are now connected with a new person',
+        data: {
+          'type': 'connection_made',
+          'connectedWith': fromUserId,
+        },
+      );
+    } catch (e) {
+      print('Error accepting connection request: $e');
+      throw Exception('Failed to accept connection request: $e');
+    }
   }
 
   /// Reject a connection request
   Future<void> rejectConnectionRequest(String requestId) async {
-    await _firestore.collection('connectionRequests').doc(requestId).update({
-      'status': 'rejected',
-      'rejectedAt': FieldValue.serverTimestamp(),
-    });
+    try {
+      // Get the request details before updating
+      final requestDoc = await _firestore.collection('connectionRequests').doc(requestId).get();
+      if (!requestDoc.exists) {
+        throw Exception('Connection request not found');
+      }
+      
+      final requestData = requestDoc.data();
+      final fromUserId = requestData?['from'] as String?;
+      
+      if (requestData?['status'] != 'pending') {
+        throw Exception('Connection request is no longer pending');
+      }
+
+      // Use a batch to ensure atomic operations
+      final batch = _firestore.batch();
+
+      // Update the request status
+      batch.update(
+        _firestore.collection('connectionRequests').doc(requestId),
+        {
+          'status': 'rejected',
+          'rejectedAt': FieldValue.serverTimestamp(),
+        },
+      );
+
+      // Remove from sent requests collection
+      if (fromUserId != null) {
+        batch.delete(
+          _firestore
+              .collection('users')
+              .doc(fromUserId)
+              .collection('sentRequests')
+              .doc(currentUserId),
+        );
+      }
+
+      // Commit all changes
+      await batch.commit();
+
+      // Send notification to the requester that their request was rejected
+      if (fromUserId != null) {
+        await sendNotificationToUser(
+          toUserId: fromUserId,
+          title: 'Connection Request Declined',
+          body: 'Your connection request was declined',
+          data: {
+            'type': 'connection_rejected',
+            'rejectedBy': currentUserId,
+          },
+        );
+      }
+    } catch (e) {
+      print('Error rejecting connection request: $e');
+      throw Exception('Failed to reject connection request: $e');
+    }
   }
 
   /// Send a notification when a connection is accepted
@@ -643,5 +819,15 @@ class FirestoreService {
       'timestamp': FieldValue.serverTimestamp(),
       'read': false,
     });
+  }
+
+  /// Get group by ID
+  Stream<DocumentSnapshot> getGroupById(String groupId) {
+    return _firestore.collection('groups').doc(groupId).snapshots();
+  }
+
+  /// Update current user profile
+  Future<void> updateUserProfile(Map<String, dynamic> data) async {
+    await _firestore.collection('users').doc(currentUserId).set(data, SetOptions(merge: true));
   }
 }

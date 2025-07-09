@@ -33,6 +33,8 @@ class GroupService {
         'joinCode': joinCode,
         'joinCodeEnabled': true,
         'createdBy': user.uid,
+        'admin': user.uid, // Add admin field for Firestore rules
+        'members': [user.uid], // Add members array for Firestore rules
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
         'isActive': true,
@@ -41,7 +43,7 @@ class GroupService {
 
       final groupRef = await _firestore.collection('groups').add(groupData);
       
-      // Add creator as admin member
+      // Add creator as admin member in subcollection (for backward compatibility)
       await _firestore.collection('groups').doc(groupRef.id).collection('members').doc(user.uid).set({
         'userId': user.uid,
         'role': 'admin',
@@ -234,7 +236,7 @@ class GroupService {
         throw Exception('Group is at maximum capacity');
       }
 
-      // Add member
+      // Add member to subcollection
       await _firestore.collection('groups').doc(groupId).collection('members').doc(userId).set({
         'userId': userId,
         'role': role,
@@ -242,9 +244,15 @@ class GroupService {
         'isActive': true,
       });
 
-      // Update member count
+      // Update member count and members array in main group document
+      final currentMembersArray = List<String>.from(groupData['members'] ?? []);
+      if (!currentMembersArray.contains(userId)) {
+        currentMembersArray.add(userId);
+      }
+
       await _firestore.collection('groups').doc(groupId).update({
         'memberCount': FieldValue.increment(1),
+        'members': currentMembersArray,
       });
 
       return true;
@@ -284,12 +292,18 @@ class GroupService {
         throw Exception('Cannot remove admin from group');
       }
 
-      // Remove member
+      // Remove member from subcollection
       await _firestore.collection('groups').doc(groupId).collection('members').doc(userId).delete();
 
-      // Update member count
+      // Update member count and members array in main group document
+      final groupDoc = await _firestore.collection('groups').doc(groupId).get();
+      final groupData = groupDoc.data()!;
+      final currentMembersArray = List<String>.from(groupData['members'] ?? []);
+      currentMembersArray.remove(userId);
+
       await _firestore.collection('groups').doc(groupId).update({
         'memberCount': FieldValue.increment(-1),
+        'members': currentMembersArray,
       });
 
       return true;
@@ -435,12 +449,18 @@ class GroupService {
         throw Exception('Admins cannot leave the group. Transfer admin role first.');
       }
 
-      // Remove member
+      // Remove member from subcollection
       await _firestore.collection('groups').doc(groupId).collection('members').doc(user.uid).delete();
 
-      // Update member count
+      // Update member count and members array in main group document
+      final groupDoc = await _firestore.collection('groups').doc(groupId).get();
+      final groupData = groupDoc.data()!;
+      final currentMembersArray = List<String>.from(groupData['members'] ?? []);
+      currentMembersArray.remove(user.uid);
+
       await _firestore.collection('groups').doc(groupId).update({
         'memberCount': FieldValue.increment(-1),
+        'members': currentMembersArray,
       });
 
       return true;
@@ -820,5 +840,27 @@ class GroupService {
       print('Error getting join code: $e');
       return null;
     }
+  }
+
+  // Send group invite by email
+  Future<void> sendGroupInviteByEmail(String groupId, String email) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('User not authenticated');
+    // Check for existing pending invite
+    final existing = await _firestore.collection('group_invitations')
+      .where('groupId', isEqualTo: groupId)
+      .where('email', isEqualTo: email)
+      .where('status', isEqualTo: 'pending')
+      .get();
+    if (existing.docs.isNotEmpty) {
+      throw Exception('An invite has already been sent to this email for this group.');
+    }
+    await _firestore.collection('group_invitations').add({
+      'groupId': groupId,
+      'email': email,
+      'invitedBy': user.uid,
+      'status': 'pending',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
   }
 }

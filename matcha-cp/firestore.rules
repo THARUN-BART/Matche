@@ -15,104 +15,15 @@ service cloud.firestore {
     // Helper function to check if user is a member of a group
     function isGroupMember(groupId) {
       return isAuthenticated() && 
-        exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
+        exists(/databases/$(database)/documents/groups/$(groupId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members;
     }
     
     // Helper function to check if user is admin of a group
     function isGroupAdmin(groupId) {
       return isAuthenticated() && 
-        get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role == 'admin';
-    }
-
-    // Users collection - users can read/write their own data
-    match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow write: if isOwner(userId);
-      
-      // User's connections subcollection
-      match /connections/{connectionId} {
-        allow read, write: if isOwner(userId);
-      }
-      
-      // User's sent requests subcollection
-      match /sentRequests/{requestId} {
-        allow read, write: if isOwner(userId);
-      }
-    }
-
-    // Connection requests - users can read requests sent to them, write their own requests
-    match /connectionRequests/{requestId} {
-      allow read: if isAuthenticated() && 
-        (request.auth.uid == resource.data.from || request.auth.uid == resource.data.to);
-      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.from;
-      allow update: if isAuthenticated() && request.auth.uid == resource.data.to;
-    }
-
-    // Groups - members can read, admin can write
-    match /groups/{groupId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isGroupAdmin(groupId);
-      allow delete: if isGroupAdmin(groupId);
-      
-      // Group members - members can read, admin can write
-      match /members/{memberId} {
-        allow read: if isAuthenticated();
-        allow write: if isGroupAdmin(groupId) || request.auth.uid == memberId;
-      }
-      
-      // Group messages - members can read/write
-      match /messages/{messageId} {
-        allow read, write: if isAuthenticated();
-      }
-    }
-
-    // Group invitations - users can read invitations sent to them, write their own invitations
-    match /group_invitations/{invitationId} {
-      allow read: if isAuthenticated() && 
-        (request.auth.uid == resource.data.invitedBy || request.auth.uid == resource.data.invitedTo);
-      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.invitedBy;
-      allow update: if isAuthenticated() && request.auth.uid == resource.data.invitedTo;
-    }
-
-    // Chats - participants can read/write
-    match /chats/{chatId} {
-      allow read, write: if isAuthenticated();
-      
-      // Chat messages - participants can read/write
-      match /messages/{messageId} {
-        allow read, write: if isAuthenticated();
-      }
-    }
-
-    // Notifications - users can read notifications sent to them, write their own notifications
-    match /notifications/{notificationId} {
-      allow read: if isAuthenticated() && request.auth.uid == resource.data.to;
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() && request.auth.uid == resource.data.to;
-    }
-
-    // Clubs - members can read, admin can write and manage members
-    match /clubs/{clubId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isClubAdmin(clubId) || 
-        (isAuthenticated() && 
-         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'admin']));
-      allow delete: if isClubAdmin(clubId);
-      
-      // Club messages - members can read/write
-      match /messages/{messageId} {
-        allow read, write: if isAuthenticated();
-      }
-    }
-
-    // Club invitations - users can read invites sent to them, write their own invites
-    match /club_invitations/{invitationId} {
-      allow read: if isAuthenticated() && 
-        (request.auth.uid == resource.data.invitedBy || request.auth.uid == resource.data.invitedUser);
-      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.invitedBy;
-      allow update: if isAuthenticated() && request.auth.uid == resource.data.invitedUser;
+        exists(/databases/$(database)/documents/groups/$(groupId)) &&
+        request.auth.uid == get(/databases/$(database)/documents/groups/$(groupId)).data.admin;
     }
 
     // Helper function to check if user is a member of a club
@@ -125,6 +36,356 @@ service cloud.firestore {
     function isClubAdmin(clubId) {
       return isAuthenticated() && 
         request.auth.uid == resource.data.admin;
+    }
+
+    // Helper function to check if user is connected with another user
+    function isConnected(otherUserId) {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)/connections/$(otherUserId));
+    }
+
+    // Helper function to validate user data
+    function isValidUserData() {
+      return request.resource.data.keys().hasAll(['name', 'email']) &&
+             request.resource.data.name is string &&
+             request.resource.data.email is string &&
+             request.resource.data.name.size() > 0 &&
+             request.resource.data.email.size() > 0;
+    }
+
+    // Helper function to validate group data - FIXED VERSION
+    function isValidGroupData() {
+      return request.resource.data.keys().hasAll(['name', 'description', 'members', 'admin']) &&
+             request.resource.data.name is string &&
+             request.resource.data.description is string &&
+             request.resource.data.members is list &&
+             request.resource.data.admin is string &&
+             request.resource.data.name.size() > 0 &&
+             request.resource.data.description.size() > 0 &&
+             request.auth.uid in request.resource.data.members &&
+             request.auth.uid == request.resource.data.admin;
+    }
+
+    // Helper function to validate message data
+    function isValidMessageData() {
+      return request.resource.data.keys().hasAll(['senderId', 'text', 'timestamp']) &&
+             request.resource.data.senderId is string &&
+             request.resource.data.text is string &&
+             request.resource.data.timestamp is timestamp &&
+             request.resource.data.senderId == request.auth.uid &&
+             request.resource.data.text.size() > 0 &&
+             request.resource.data.text.size() <= 1000;
+    }
+
+    // Helper function to validate notification data
+    function isValidNotificationData() {
+      return request.resource.data.keys().hasAll(['to', 'from', 'title', 'body', 'type', 'timestamp']) &&
+             request.resource.data.to is string &&
+             request.resource.data.from is string &&
+             request.resource.data.title is string &&
+             request.resource.data.body is string &&
+             request.resource.data.type is string &&
+             request.resource.data.timestamp is timestamp &&
+             request.resource.data.from == request.auth.uid;
+    }
+
+    // Users collection - users can read/write their own data, read other users' basic info
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUserData();
+      allow update: if isAuthenticated() && isOwner(userId);
+      allow delete: if false; // Prevent user deletion for data integrity
+      
+      // User's connections subcollection
+      match /connections/{connectionId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // User's sent requests subcollection
+      match /sentRequests/{requestId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // User's received requests subcollection
+      match /receivedRequests/{requestId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // Connection requests - users can read requests sent to them, write their own requests
+    match /connectionRequests/{requestId} {
+      allow read: if isAuthenticated() && 
+        (request.auth.uid == resource.data.from || request.auth.uid == resource.data.to);
+      allow create: if isAuthenticated() && 
+        request.auth.uid == request.resource.data.from &&
+        request.auth.uid != request.resource.data.to; // Prevent self-connection
+      allow update: if isAuthenticated() && 
+        (request.auth.uid == resource.data.to || request.auth.uid == resource.data.from);
+      allow delete: if false; // Keep request history
+    }
+
+    // Groups - members can read, admin can write
+    match /groups/{groupId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidGroupData();
+      allow update: if isGroupAdmin(groupId);
+      allow delete: if isGroupAdmin(groupId);
+      
+      // Group members subcollection
+      match /members/{memberId} {
+        allow read: if isAuthenticated();
+        allow write: if isGroupAdmin(groupId) || request.auth.uid == memberId;
+      }
+      
+      // Group messages - members can read/write
+      match /messages/{messageId} {
+        allow read: if isGroupMember(groupId);
+        allow write: if isGroupMember(groupId) && isValidMessageData();
+      }
+    }
+
+    // Group invitations - users can read invitations sent to them, write their own invitations
+    match /group_invitations/{invitationId} {
+      allow read: if isAuthenticated() && 
+        (request.auth.uid == resource.data.invitedBy || request.auth.uid == resource.data.invitedTo);
+      allow create: if isAuthenticated() && 
+        request.auth.uid == request.resource.data.invitedBy;
+      allow update: if isAuthenticated() && 
+        request.auth.uid == resource.data.invitedTo;
+      allow delete: if isAuthenticated() && 
+        (request.auth.uid == resource.data.invitedBy || request.auth.uid == resource.data.invitedTo);
+    }
+
+    // Notifications - users can read notifications sent to them, create notifications
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.to;
+      allow create: if isAuthenticated() && isValidNotificationData();
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.to;
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.to;
+    }
+
+    // Clubs - members can read, admin can write and manage members
+    match /clubs/{clubId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+        request.auth.uid == request.resource.data.admin &&
+        request.auth.uid in request.resource.data.members;
+      allow update: if isAuthenticated() && 
+        request.auth.uid == resource.data.admin;
+      allow delete: if isAuthenticated() && 
+        request.auth.uid == resource.data.admin;
+      
+      // Club messages - members can read/write
+      match /messages/{messageId} {
+        allow read, write: if isClubMember(clubId);
+      }
+    }
+
+    // Club invitations - users can read invites sent to them, write their own invites
+    match /group_invites/{inviteId} {
+      allow read: if isAuthenticated() && 
+        (request.auth.uid == resource.data.invitedBy || request.auth.uid == resource.data.invitedUser);
+      allow create: if isAuthenticated() && 
+        request.auth.uid == request.resource.data.invitedBy;
+      allow update: if isAuthenticated() && 
+        request.auth.uid == resource.data.invitedUser;
+      allow delete: if isAuthenticated() && 
+        (request.auth.uid == resource.data.invitedBy || request.auth.uid == resource.data.invitedUser);
+    }
+
+    // Chat rooms - participants can read/write
+    match /chatRooms/{chatId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Individual messages - participants can read/write
+    match /messages/{messageId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Group messages - group members can read/write
+    match /groupMessages/{messageId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // User search index (if you implement search)
+    match /userSearch/{searchId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only allow writes through admin functions
+    }
+
+    // User activity logs (for analytics)
+    match /userActivity/{activityId} {
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      allow update, delete: if false;
+    }
+
+    // App settings (global)
+    match /appSettings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only admin can write through admin functions
+    }
+
+    // User preferences
+    match /userPreferences/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Blocked users
+    match /blockedUsers/{blockId} {
+      allow read, write: if isAuthenticated() && 
+        (request.auth.uid == resource.data.blockedBy || request.auth.uid == resource.data.blockedUser);
+    }
+
+    // Report system
+    match /reports/{reportId} {
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.reportedBy;
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.reportedBy;
+      allow update, delete: if false; // Only admin can handle reports
+    }
+
+    // Admin functions (if you implement admin panel)
+    match /admin/{adminId} {
+      allow read, write: if false; // Implement admin authentication separately
+    }
+
+    // Additional collections for enhanced features
+
+    // User profiles - extended user information
+    match /userProfiles/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+
+    // User skills and interests
+    match /userSkills/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+
+    // User availability
+    match /userAvailability/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+
+    // User personality quiz results
+    match /userPersonality/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+
+    // Matching preferences
+    match /matchingPreferences/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+
+    // Chat metadata (for enhanced chat features)
+    match /chatMetadata/{chatId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Message reactions
+    match /messageReactions/{messageId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // User status updates
+    match /userStatus/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+
+    // Group categories
+    match /groupCategories/{categoryId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only admin can manage categories
+    }
+
+    // Group tags
+    match /groupTags/{tagId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only admin can manage tags
+    }
+
+    // User feedback
+    match /userFeedback/{feedbackId} {
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      allow update, delete: if false;
+    }
+
+    // App analytics (anonymous)
+    match /analytics/{analyticsId} {
+      allow read: if false; // Only admin can read
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+
+    // System logs
+    match /systemLogs/{logId} {
+      allow read, write: if false; // Only system functions can access
+    }
+
+    // Feature flags
+    match /featureFlags/{flagId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only admin can manage feature flags
+    }
+
+    // User sessions
+    match /userSessions/{sessionId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    // Push notification tokens
+    match /pushTokens/{tokenId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    // User achievements/badges
+    match /userAchievements/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+
+    // Group achievements
+    match /groupAchievements/{groupId} {
+      allow read: if isAuthenticated();
+      allow write: if isGroupAdmin(groupId);
+    }
+
+    // User verification
+    match /userVerification/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+    }
+
+    // Emergency contacts
+    match /emergencyContacts/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Privacy settings
+    match /privacySettings/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Data export requests
+    match /dataExports/{exportId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    // Terms of service acceptance
+    match /termsAcceptance/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // Privacy policy acceptance
+    match /privacyAcceptance/{userId} {
+      allow read, write: if isOwner(userId);
     }
   }
 }

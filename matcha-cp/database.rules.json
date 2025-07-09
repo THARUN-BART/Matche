@@ -1,0 +1,46 @@
+{
+  "rules": {
+    "chatRooms": {
+      "$chatId": {
+        ".read": "data.child('participants').hasChild(auth.uid)",
+        ".write": "data.child('participants').hasChild(auth.uid) || !data.exists()"
+      }
+    },
+    "messages": {
+      "$chatId": {
+        ".read": "root.child('chatRooms').child($chatId).child('participants').hasChild(auth.uid)",
+        ".write": "root.child('chatRooms').child($chatId).child('participants').hasChild(auth.uid)"
+      }
+    },
+    "groupChatRooms": {
+      "$groupId": {
+        ".read": "root.child('groups').child($groupId).child('members').hasChild(auth.uid)",
+        ".write": "root.child('groups').child($groupId).child('members').hasChild(auth.uid)"
+      }
+    },
+    "groupMessages": {
+      "$groupId": {
+        ".read": "root.child('groups').child($groupId).child('members').hasChild(auth.uid)",
+        ".write": "root.child('groups').child($groupId).child('members').hasChild(auth.uid)"
+      }
+    },
+    "typing": {
+      "$chatId": {
+        ".read": "root.child('chatRooms').child($chatId).child('participants').hasChild(auth.uid)",
+        ".write": "root.child('chatRooms').child($chatId).child('participants').hasChild(auth.uid)"
+      }
+    },
+    "groupTyping": {
+      "$groupId": {
+        ".read": "root.child('groups').child($groupId).child('members').hasChild(auth.uid)",
+        ".write": "root.child('groups').child($groupId).child('members').hasChild(auth.uid)"
+      }
+    },
+    "onlineStatus": {
+      "$userId": {
+        ".read": "auth.uid != null",
+        ".write": "auth.uid == $userId"
+      }
+    }
+  }
+} 

@@ -1,173 +1,271 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
 import '../../service/firestore_service.dart';
 import '../../service/group_service.dart';
 import '../../widget/chat_screen.dart';
 import '../../widget/common_widget.dart';
 import '../../widget/group_card.dart';
 import '../../widget/match_card.dart';
+import '../../widget/skeleton_loading.dart';
 import 'group_chat_screen.dart';
+import '../../service/matching_service.dart';
+import 'settings.dart' show AboutMyselfDialog;
+import '../../widget/connection_card.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final Set<String> _sentRequestUserIds = {};
+  int _unreadNotifCount = 0;
+  bool _checkingProfile = true;
+  bool _profileComplete = false;
+  Map<String, dynamic> _userData = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _checkProfileCompleteness();
+  }
+
+  Future<void> _checkProfileCompleteness() async {
+    final firestoreService = Provider.of<FirestoreService>(context, listen: false);
+    final userSnap = await firestoreService.getCurrentUserData();
+    if (!userSnap.exists) {
+      setState(() {
+        _checkingProfile = false;
+        _profileComplete = false;
+      });
+      return;
+    }
+    final data = userSnap.data() as Map<String, dynamic>;
+    _userData = data;
+    final hasSkills = (data['skills'] is List && (data['skills'] as List).isNotEmpty);
+    final hasInterests = (data['interests'] is List && (data['interests'] as List).isNotEmpty);
+    final hasAvailability = data['availability'] != null && data['availability'].toString().isNotEmpty;
+    final big5 = data['big5'];
+    final hasBig5 = big5 is Map && ['O','C','E','A','N'].every((k) => big5[k] != null);
+    final complete = hasSkills && hasInterests && hasAvailability && hasBig5;
+    setState(() {
+      _checkingProfile = false;
+      _profileComplete = complete;
+    });
+    if (!complete) {
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AboutMyselfDialog(
+            userData: data,
+            onSave: (newData) async {
+              await firestoreService.updateUserProfile(newData);
+              if (!mounted) return;
+              setState(() {
+                _profileComplete = true;
+                _userData = {..._userData, ...newData};
+              });
+            },
+          ),
+        );
+      });
+    }
+  }
+
+  void _showNotificationsModal(BuildContext context, List<QueryDocumentSnapshot> notifications) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Notifications', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              if (notifications.isEmpty)
+                const Text('No new notifications'),
+              ...notifications.map((doc) {
+                final n = doc.data() as Map<String, dynamic>;
+                final fromId = n['from'] as String?;
+                final notifId = doc.id;
+                final timestamp = (n['timestamp'] as Timestamp?)?.toDate();
+                return ListTile(
+                  leading: const Icon(Icons.notifications, color: Colors.deepPurple),
+                  title: Text(n['title'] ?? 'Notification'),
+                  subtitle: Text(timestamp != null ? '${timestamp.toLocal()}' : ''),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.check, color: Colors.green),
+                    onPressed: () {
+                      FirebaseFirestore.instance
+                          .collection('notifications')
+                          .doc(notifId)
+                          .update({'read': true});
+                      Navigator.pop(context);
+                    },
+                  ),
+                );
+              }).toList(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final firestoreService = Provider.of<FirestoreService>(context);
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Quick Actions
-          Row(
-            children: [
-              Expanded(
-                child: buildQuickActionCard(
-                  "Find Partner",
-                  Icons.search,
-                  Colors.blue,
-                      () => _showMatchingDialog(context),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: buildQuickActionCard(
-                  "Create Group",
-                  Icons.group_add,
-                  Colors.green,
-                      () => _showCreateGroupDialog(context),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Notifications Section
-          buildSectionHeader("Notifications", "Recent activity"),
-          const SizedBox(height: 12),
-          StreamBuilder<QuerySnapshot>(
-            stream: firestoreService.getUnreadNotifications(),
-            builder: (context, notifSnap) {
-              if (notifSnap.hasError) {
-                return const Text('Error loading notifications');
-              }
-              if (notifSnap.connectionState == ConnectionState.waiting) {
-                return const CircularProgressIndicator();
-              }
-
-              final docs = notifSnap.data?.docs ?? [];
-              if (docs.isEmpty) {
-                return const Text("No new notifications");
-              }
-
-              return Column(
-                children: docs.map((doc) {
-                  final n = doc.data() as Map<String, dynamic>;
-                  final fromId = n['from'] as String;
-                  final notifId = doc.id;
-                  final timestamp = (n['timestamp'] as Timestamp).toDate();
-
-                  return FutureBuilder<DocumentSnapshot>(
-                    future: firestoreService.getUserById(fromId),
-                    builder: (context, userSnap) {
-                      if (!userSnap.hasData) return const SizedBox();
-                      final user = userSnap.data!.data() as Map<String, dynamic>;
-                      return ListTile(
-                        leading: const Icon(Icons.person_add, color: Colors.deepPurple),
-                        title: Text("${user['name']} accepted your connection"),
-                        subtitle: Text("${timestamp.toLocal()}"),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.check, color: Colors.green),
-                          onPressed: () {
-                            FirebaseFirestore.instance
-                                .collection('notifications')
-                                .doc(notifId)
-                                .update({'read': true});
-                          },
-                        ),
-                      );
-                    },
-                  );
-                }).toList(),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-
-          // Suggested Matches Section
-          buildSectionHeader("Suggested Matches", "Based on your profile"),
-          const SizedBox(height: 12),
-          StreamBuilder<QuerySnapshot>(
-            stream: firestoreService.getAllUsersExceptCurrent(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return const Text('Error loading matches');
-              }
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const CircularProgressIndicator();
-              }
-
-              final users = snapshot.data?.docs ?? [];
-              return SizedBox(
-                height: 220,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: users.length,
-                  itemBuilder: (context, index) {
-                    final u = users[index];
-                    final user = u.data() as Map<String, dynamic>;
-                    return MatchCard(
-                      user: user,
-                      onConnect: () => _connectWithPeer(context, u.id),
-                      onChat: () => _openChat(context, u.id),
-                    );
-                  },
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-
-          // Active Groups Section
-          buildSectionHeader("Your Groups", "Study groups and projects"),
-          const SizedBox(height: 12),
-          StreamBuilder<List<Map<String, dynamic>>>(
-            stream: Provider.of<GroupService>(context, listen: false).getUserGroups(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return const Text('Error loading groups');
-              }
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const CircularProgressIndicator();
-              }
-              final groups = snapshot.data ?? [];
-              if (groups.isEmpty) {
-                return const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text(
-                      'No groups yet. Create your first study group!',
-                      style: TextStyle(fontSize: 16, color: Colors.grey),
-                      textAlign: TextAlign.center,
-                    ),
+    final matchingService = Provider.of<MatchingService>(context, listen: false);
+    final userId = firestoreService.currentUserId;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Groups', style: TextStyle(fontWeight: FontWeight.bold)),
+        actions: [],
+        elevation: 0,
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.black,
+      ),
+      body: _checkingProfile
+          ? const Center(child: CircularProgressIndicator())
+          : !_profileComplete
+              ? const Center(child: Text('Please complete your profile to see matches.'))
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Best Peer Matches Section
+                      buildSectionHeader("Best Peer Matches", "Based on your profile and preferences"),
+                      const SizedBox(height: 12),
+                      FutureBuilder<List<Map<String, dynamic>>>(
+                        future: userId != null
+                            ? matchingService.getClusterMatches(userId, top: 5)
+                            : Future.value([]),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasError) {
+                            print('Error loading peers:  [31m [1m [4m [7m [5m${snapshot.error} [0m');
+                            return const Text('Error loading peers');
+                          }
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const SkeletonMatchList(itemCount: 5);
+                          }
+                          final matches = snapshot.data ?? [];
+                          if (matches.isEmpty) {
+                            return const Text('No compatible peers found.');
+                          }
+                          return SizedBox(
+                            height: 220,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: matches.length,
+                              separatorBuilder: (context, index) => SizedBox(width: 16),
+                              itemBuilder: (context, index) {
+                                final match = matches[index];
+                                return FutureBuilder<Map<String, dynamic>>(
+                                  future: matchingService.getUserDetails(match['uid']),
+                                  builder: (context, userSnapshot) {
+                                    if (userSnapshot.connectionState == ConnectionState.waiting) {
+                                      return SizedBox(
+                                        width: 180,
+                                        child: Card(child: Center(child: CircularProgressIndicator())),
+                                      );
+                                    }
+                                    if (userSnapshot.hasError || userSnapshot.data == null) {
+                                      return SizedBox(
+                                        width: 180,
+                                        child: Card(child: Center(child: Text('Error'))),
+                                      );
+                                    }
+                                    final user = userSnapshot.data!;
+                                    return SizedBox(
+                                      width: 180,
+                                      child: Card(
+                                        elevation: 4,
+                                        child: Padding(
+                                          padding: const EdgeInsets.all(12.0),
+                                          child: Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Text(user['name'] ?? 'Unknown', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                              SizedBox(height: 8),
+                                              Text('Similarity: ${match['similarity']}%', style: TextStyle(color: Colors.grey[700])),
+                                              SizedBox(height: 8),
+                                              ElevatedButton(
+                                                onPressed: () {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    SnackBar(content: Text('Connect request sent to ${user['name'] ?? 'user'}!')),
+                                                  );
+                                                },
+                                                child: Text('Connect'),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                      // Group Management Section
+                      buildSectionHeader("Your Groups", "Study groups and projects"),
+                      const SizedBox(height: 12),
+                      StreamBuilder<List<Map<String, dynamic>>>(
+                        stream: Provider.of<GroupService>(context, listen: false).getUserGroups(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasError) {
+                            return const Text('Error loading groups');
+                          }
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const SkeletonList(itemCount: 2, itemHeight: 100);
+                          }
+                          final groups = snapshot.data ?? [];
+                          if (groups.isEmpty) {
+                            return Card(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              child: const Padding(
+                                padding: EdgeInsets.all(16),
+                                child: Text(
+                                  'No groups yet. Create your first study group!',
+                                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            );
+                          }
+                          return Column(
+                            children: groups.map((group) {
+                              return GroupCard(
+                                group: group,
+                                onTap: () => _openGroupChat(context, group['id'], group),
+                              );
+                            }).toList(),
+                          );
+                        },
+                      ),
+                    ],
                   ),
-                );
-              }
-              return Column(
-                children: groups.map((group) {
-                  return GroupCard(
-                    group: group,
-                    onTap: () => _openGroupChat(context, group['id'], group),
-                  );
-                }).toList(),
-              );
-            },
-          ),
-        ],
+                ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _showCreateGroupDialog(context),
+        icon: const Icon(Icons.group_add),
+        label: const Text('Create Group'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
       ),
     );
   }
@@ -212,23 +310,43 @@ class HomeScreen extends StatelessWidget {
             children: [
               TextField(
                 controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Group Name'),
+                decoration: const InputDecoration(
+                  labelText: 'Group Name',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(30)),
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: descCtrl,
-                decoration: const InputDecoration(labelText: 'Description'),
+                decoration: const InputDecoration(
+                  labelText: 'Description',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(30)),
+                  ),
+                ),
                 maxLines: 3,
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: categoryCtrl,
-                decoration: const InputDecoration(labelText: 'Category (e.g., Study, Project, Research)'),
+                decoration: const InputDecoration(
+                  labelText: 'Category (e.g., Study, Project, Research)',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(30)),
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: maxMembersCtrl,
-                decoration: const InputDecoration(labelText: 'Max Members'),
+                decoration: const InputDecoration(
+                  labelText: 'Max Members',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(30)),
+                  ),
+                ),
                 keyboardType: TextInputType.number,
               ),
               const SizedBox(height: 16),
@@ -237,6 +355,9 @@ class HomeScreen extends StatelessWidget {
                 decoration: const InputDecoration(
                   labelText: 'Skills (comma-separated)',
                   hintText: 'e.g., Python, Math, Design',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(30)),
+                  ),
                 ),
               ),
             ],

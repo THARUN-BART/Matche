@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter/material.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -203,6 +204,65 @@ class NotificationService {
     // }
   }
 
+  // Handle notification tap with navigation
+  void handleNotificationTap(Map<String, dynamic> data, BuildContext context) {
+    final type = data['type'];
+    
+    switch (type) {
+      case 'connection_request':
+        // Navigate to matches screen with requests tab
+        Navigator.pushNamed(context, '/matches', arguments: {'tab': 'requests'});
+        break;
+        
+      case 'connection_accepted':
+      case 'connection_made':
+        // Navigate to matches screen with matches tab
+        Navigator.pushNamed(context, '/matches', arguments: {'tab': 'matches'});
+        break;
+        
+      case 'connection_rejected':
+        // Navigate to matches screen with suggestions tab
+        Navigator.pushNamed(context, '/matches', arguments: {'tab': 'suggestions'});
+        break;
+        
+      case 'message':
+        // Navigate to chat screen
+        final chatId = data['chatId'];
+        final senderId = data['senderId'];
+        final senderName = data['senderName'];
+        if (chatId != null && senderId != null && senderName != null) {
+          Navigator.pushNamed(context, '/chat', arguments: {
+            'chatId': chatId,
+            'otherUserId': senderId,
+            'otherUserName': senderName,
+          });
+        }
+        break;
+        
+      case 'group_message':
+        // Navigate to group chat screen
+        final groupId = data['groupId'];
+        final groupName = data['groupName'];
+        if (groupId != null && groupName != null) {
+          Navigator.pushNamed(context, '/group-chat', arguments: {
+            'groupId': groupId,
+            'groupName': groupName,
+          });
+        }
+        break;
+        
+      case 'group_invitation':
+        // Navigate to group invitations screen
+        Navigator.pushNamed(context, '/group-invitations');
+        break;
+        
+      default:
+        // Navigate to messages screen for unknown types
+        Navigator.pushNamed(context, '/messages');
+        break;
+    }
+  }
+
   // Subscribe to topics (optional)
   Future<void> subscribeToTopic(String topic) async {
     await _messaging.subscribeToTopic(topic);
@@ -293,6 +353,36 @@ class NotificationService {
       // Note: For actual FCM sending, you'll need a server-side implementation
       // This is just storing the notification locally
     }
+  }
+
+  // Public method to show a local notification with title and body
+  Future<void> showLocalNotification({
+    required String title,
+    required String body,
+  }) async {
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'matcha_notifications',
+      'Matcha Notifications',
+      channelDescription: 'Notifications for Matcha app',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+
+    const DarwinNotificationDetails iOSPlatformChannelSpecifics =
+        DarwinNotificationDetails();
+
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+      iOS: iOSPlatformChannelSpecifics,
+    );
+
+    await _localNotifications.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title,
+      body,
+      platformChannelSpecifics,
+    );
   }
 
   void dispose() {

@@ -8,6 +8,7 @@ import 'NavigationScreen/settings.dart';
 import 'account_info.dart';
 import '../service/notification_service.dart';
 import '../service/firestore_service.dart';
+import '../widget/common_widget.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -25,6 +26,35 @@ class _MainNavigationState extends State<MainNavigation> {
     const MessagesScreen(),
     const SettingsScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // Check if we need to navigate to a specific tab
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkNavigationArguments();
+    });
+  }
+
+  void _checkNavigationArguments() {
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (args != null) {
+      final tab = args['tab'] as String?;
+      if (tab != null) {
+        switch (tab) {
+          case 'matches':
+            setState(() => _currentIndex = 1);
+            break;
+          case 'messages':
+            setState(() => _currentIndex = 2);
+            break;
+          case 'settings':
+            setState(() => _currentIndex = 3);
+            break;
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,44 +76,39 @@ class _MainNavigationState extends State<MainNavigation> {
           icon: const Icon(Icons.account_circle, size: 30),
         ),
         actions: [
-          Stack(
-            children: [
-              IconButton(
-                onPressed: () => _showNotifications(context),
-                icon: const Icon(Icons.notifications, size: 30),
-              ),
-              StreamBuilder<int>(
-                stream: notificationService.badgeStream,
-                builder: (context, snapshot) {
-                  final badgeCount = snapshot.data ?? 0;
-                  if (badgeCount == 0) return const SizedBox();
-                  
-                  return Positioned(
-                    right: 8,
-                    top: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      constraints: const BoxConstraints(
-                        minWidth: 16,
-                        minHeight: 16,
-                      ),
-                      child: Text(
-                        badgeCount > 99 ? '99+' : badgeCount.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
+          StreamBuilder(
+            stream: Provider.of<FirestoreService>(context, listen: false).getUnreadNotifications(),
+            builder: (context, snapshot) {
+              final docs = snapshot.data?.docs ?? [];
+              final unreadCount = docs.length;
+              return IconButton(
+                icon: Stack(
+                  children: [
+                    const Icon(Icons.notifications, size: 30),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                          child: Text(
+                            '$unreadCount',
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
-                        textAlign: TextAlign.center,
                       ),
-                    ),
-                  );
-                },
-              ),
-            ],
+                  ],
+                ),
+                onPressed: () => _showNotifications(context),
+                tooltip: 'Notifications',
+              );
+            },
           ),
         ],
       ),
@@ -149,28 +174,37 @@ class _MainNavigationState extends State<MainNavigation> {
                   }
 
                   final notifications = snapshot.data?.docs ?? [];
-                  if (notifications.isEmpty) {
+                  // Filter for unique group invitations by groupId
+                  final uniqueInvites = <String, Map<String, dynamic>>{};
+                  final uniqueOther = <String, Map<String, dynamic>>{};
+                  for (var doc in notifications) {
+                    final n = doc.data() as Map<String, dynamic>;
+                    if (n['type'] == 'group_invite' && n['groupId'] != null) {
+                      uniqueInvites[n['groupId']] = n;
+                    } else if (n['type'] != 'group_invite') {
+                      uniqueOther[doc.id] = n;
+                    }
+                  }
+                  if (uniqueInvites.isEmpty && uniqueOther.isEmpty) {
                     return const Center(child: Text('No notifications'));
                   }
-
-                  return ListView.builder(
-                    itemCount: notifications.length,
-                    itemBuilder: (context, index) {
-                      final notification = notifications[index].data() as Map<String, dynamic>;
-                      final notificationId = notifications[index].id;
-                      
-                      return ListTile(
+                  return ListView(
+                    children: [
+                      // Show unique group invitations first
+                      ...uniqueInvites.values.map((n) => ListTile(
+                        leading: const Icon(Icons.group_add, color: Colors.deepPurple),
+                        title: Text(n['title'] ?? 'Group Invitation'),
+                        subtitle: Text(n['body'] ?? ''),
+                        trailing: Icon(Icons.group, color: Colors.green),
+                      )),
+                      // Show other unique notifications
+                      ...uniqueOther.values.map((n) => ListTile(
                         leading: const Icon(Icons.notifications, color: Colors.deepPurple),
-                        title: Text(notification['title'] ?? 'Notification'),
-                        subtitle: Text(notification['body'] ?? ''),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.check, color: Colors.green),
-                          onPressed: () {
-                            notificationService.markNotificationAsRead(notificationId);
-                          },
-                        ),
-                      );
-                    },
+                        title: Text(n['title'] ?? 'Notification'),
+                        subtitle: Text(n['body'] ?? ''),
+                        trailing: Icon(Icons.check, color: Colors.green),
+                      )),
+                    ],
                   );
                 },
               ),

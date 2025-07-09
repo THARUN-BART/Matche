@@ -12,7 +12,6 @@ import 'package:matcha/splash_screen.dart';
 import 'package:provider/provider.dart';
 
 Future _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Check if Firebase is already initialized before initializing
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   }
@@ -42,7 +41,7 @@ Future<void> main() async {
       providers: [
         Provider<FirestoreService>(create: (_) => FirestoreService()),
         Provider<NotificationService>(create: (_) => NotificationService()),
-        Provider<MatchingService>(create: (context) => MatchingService(context.read<FirestoreService>())),
+        Provider<MatchingService>(create: (_) => MatchingService(apiBaseUrl: 'https://backend-u5oi.onrender.com')),
         Provider<GroupService>(create: (_) => GroupService()),
         Provider<RealtimeChatService>(create: (_) => RealtimeChatService()),
       ],
@@ -55,7 +54,7 @@ Future<void> main() async {
       providers: [
         Provider<FirestoreService>(create: (_) => FirestoreService()),
         Provider<NotificationService>(create: (_) => NotificationService()),
-        Provider<MatchingService>(create: (context) => MatchingService(context.read<FirestoreService>())),
+        Provider<MatchingService>(create: (_) => MatchingService(apiBaseUrl: 'https://backend-u5oi.onrender.com')),
         Provider<GroupService>(create: (_) => GroupService()),
         Provider<RealtimeChatService>(create: (_) => RealtimeChatService()),
       ],
@@ -64,8 +63,57 @@ Future<void> main() async {
   }
 }
 
-class Matcha extends StatelessWidget {
+class Matcha extends StatefulWidget {
   const Matcha({super.key});
+
+  @override
+  State<Matcha> createState() => _MatchaState();
+}
+
+class _MatchaState extends State<Matcha> with WidgetsBindingObserver {
+  late RealtimeChatService _chatService;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _chatService = RealtimeChatService();
+    _setOnlineStatus(true);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _setOnlineStatus(false);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _setOnlineStatus(true);
+        break;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        _setOnlineStatus(false);
+        break;
+      case AppLifecycleState.hidden:
+        // Handle hidden state if needed
+        break;
+    }
+  }
+
+  Future<void> _setOnlineStatus(bool isOnline) async {
+    try {
+      await _chatService.setOnlineStatus(isOnline);
+    } catch (e) {
+      print('Error setting online status: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

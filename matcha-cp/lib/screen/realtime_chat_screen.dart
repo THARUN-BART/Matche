@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import '../service/realtime_chat_service.dart';
 import '../service/firestore_service.dart';
+import '../widget/typing_indicator.dart';
+import '../widget/online_avatar.dart';
 
 class RealtimeChatScreen extends StatefulWidget {
   final String otherUserId;
@@ -30,9 +32,11 @@ class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
   String? _currentChatId;
   bool _isTyping = false;
   Timer? _typingTimer;
-  Map<String, bool> _typingUsers = {};
+  Map<String, TypingStatus> _typingUsers = {};
   List<ChatMessage> _messages = [];
   bool _isLoading = true;
+  String? _errorMessage;
+  bool _otherUserOnline = false;
 
   @override
   void initState() {
@@ -40,15 +44,40 @@ class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
     _chatService = Provider.of<RealtimeChatService>(context, listen: false);
     _firestoreService = Provider.of<FirestoreService>(context, listen: false);
     _initializeChat();
+    _setOnlineStatus(true);
+  }
+
+  @override
+  void dispose() {
+    _typingTimer?.cancel();
+    _messageController.dispose();
+    _scrollController.dispose();
+    _setOnlineStatus(false);
+    super.dispose();
+  }
+
+  Future<void> _setOnlineStatus(bool isOnline) async {
+    try {
+      await _chatService.setOnlineStatus(isOnline);
+    } catch (e) {
+      print('Error setting online status: $e');
+    }
   }
 
   Future<void> _initializeChat() async {
     try {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+
       // Get or create chat room
       _currentChatId = widget.chatId ?? await _chatService.createOrGetChatRoom(widget.otherUserId);
       
       // Mark all messages as read when opening chat
-      await _chatService.markAllMessagesAsRead(_currentChatId!);
+      if (_currentChatId != null) {
+        await _chatService.markAllMessagesAsRead(_currentChatId!);
+      }
       
       setState(() {
         _isLoading = false;
@@ -57,6 +86,7 @@ class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
       print('Error initializing chat: $e');
       setState(() {
         _isLoading = false;
+        _errorMessage = 'Failed to initialize chat: $e';
       });
     }
   }
@@ -66,7 +96,7 @@ class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
     if (_isLoading) {
       return Scaffold(
         appBar: AppBar(
-          title: Text(widget.otherUserName),
+          title: _buildAppBarTitle(),
           backgroundColor: Colors.green,
           foregroundColor: Colors.white,
         ),
@@ -74,30 +104,43 @@ class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
       );
     }
 
+    if (_errorMessage != null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: _buildAppBarTitle(),
+          backgroundColor: Colors.green,
+          foregroundColor: Colors.white,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(
+                'Error',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _initializeChat,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.otherUserName),
-            StreamBuilder<Map<String, bool>>(
-              stream: _chatService.getTypingStatus(_currentChatId!),
-              builder: (context, snapshot) {
-                if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-                  return Text(
-                    'typing...',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white70,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-          ],
-        ),
+        title: _buildAppBarTitle(),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         actions: [
@@ -111,59 +154,155 @@ class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
         children: [
           // Messages
           Expanded(
-            child: StreamBuilder<List<ChatMessage>>(
-              stream: _chatService.getChatMessages(_currentChatId!),
+            child: _currentChatId != null
+                ? StreamBuilder<List<ChatMessage>>(
+                    stream: _chatService.getChatMessages(_currentChatId!),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                              const SizedBox(height: 16),
+                              const Text('Error loading messages'),
+                              const SizedBox(height: 8),
+                              ElevatedButton(
+                                onPressed: () => setState(() {}),
+                                child: const Text('Retry'),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      _messages = snapshot.data ?? [];
+                      
+                      if (_messages.isEmpty) {
+                        return const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey),
+                              SizedBox(height: 16),
+                              Text(
+                                'No messages yet',
+                                style: TextStyle(fontSize: 18, color: Colors.grey),
+                              ),
+                              Text(
+                                'Start a conversation!',
+                                style: TextStyle(fontSize: 14, color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return ListView.builder(
+                        controller: _scrollController,
+                        reverse: true,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: _messages.length,
+                        itemBuilder: (context, index) {
+                          final message = _messages[_messages.length - 1 - index];
+                          final isMe = message.senderId == _firestoreService.currentUserId;
+                          
+                          return _buildMessageBubble(message, isMe);
+                        },
+                      );
+                    },
+                  )
+                : const Center(
+                    child: Text('Chat not initialized'),
+                  ),
+          ),
+          
+          // Typing indicator
+          if (_currentChatId != null)
+            StreamBuilder<Map<String, TypingStatus>>(
+              stream: _chatService.getTypingStatus(_currentChatId!),
               builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return const Center(child: Text('Error loading messages'));
+                if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                  final typingUsers = snapshot.data!;
+                  final typingUserNames = <String>[];
+                  
+                  for (var entry in typingUsers.entries) {
+                    if (entry.value.shouldShowTyping) {
+                      typingUserNames.add(entry.key);
+                    }
+                  }
+                  
+                  if (typingUserNames.isNotEmpty) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Row(
+                        children: [
+                          const TypingIndicator(color: Colors.grey, size: 16),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${typingUserNames.first} is typing...',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[600],
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
                 }
-
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                _messages = snapshot.data ?? [];
-                
-                if (_messages.isEmpty) {
-                  return const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey),
-                        SizedBox(height: 16),
-                        Text(
-                          'No messages yet',
-                          style: TextStyle(fontSize: 18, color: Colors.grey),
-                        ),
-                        Text(
-                          'Start a conversation!',
-                          style: TextStyle(fontSize: 14, color: Colors.grey),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  controller: _scrollController,
-                  reverse: true,
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _messages.length,
-                  itemBuilder: (context, index) {
-                    final message = _messages[_messages.length - 1 - index];
-                    final isMe = message.senderId == _firestoreService.currentUserId;
-                    
-                    return _buildMessageBubble(message, isMe);
-                  },
-                );
+                return const SizedBox.shrink();
               },
             ),
-          ),
           
           // Message input
           _buildMessageInput(),
         ],
       ),
+    );
+  }
+
+  Widget _buildAppBarTitle() {
+    return StreamBuilder<bool>(
+      stream: _chatService.getUserOnlineStatus(widget.otherUserId),
+      builder: (context, snapshot) {
+        final isOnline = snapshot.data ?? false;
+        
+        return Row(
+          children: [
+            OnlineAvatar(
+              imageUrl: null, // You can add user avatar URL here
+              name: widget.otherUserName,
+              radius: 20,
+              isOnline: isOnline,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.otherUserName,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    isOnline ? 'Online' : 'Offline',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isOnline ? Colors.green[100] : Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -206,11 +345,6 @@ class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Reply to message (if any)
-                      if (message.replyTo != null)
-                        _buildReplyPreview(message.replyTo!),
-                      
-                      // Message text
                       Text(
                         message.text,
                         style: TextStyle(
@@ -218,23 +352,24 @@ class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
                           fontSize: 16,
                         ),
                       ),
-                      
                       const SizedBox(height: 4),
-                      
-                      // Message status and time
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             _formatTime(message.timestamp),
                             style: TextStyle(
-                              color: isMe ? Colors.white70 : Colors.grey[600],
                               fontSize: 12,
+                              color: isMe ? Colors.white70 : Colors.grey[600],
                             ),
                           ),
                           if (isMe) ...[
                             const SizedBox(width: 4),
-                            _buildMessageStatus(message),
+                            Icon(
+                              message.status == 'read' ? Icons.done_all : Icons.done,
+                              size: 16,
+                              color: message.status == 'read' ? Colors.blue : Colors.white70,
+                            ),
                           ],
                         ],
                       ),
@@ -247,61 +382,6 @@ class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
         );
       },
     );
-  }
-
-  Widget _buildReplyPreview(String replyToMessageId) {
-    // Find the replied message
-    final repliedMessage = _messages.firstWhere(
-      (msg) => msg.messageId == replyToMessageId,
-      orElse: () => ChatMessage(
-        messageId: '',
-        senderId: '',
-        text: 'Message not found',
-        timestamp: DateTime.now(),
-        type: 'text',
-        status: 'sent',
-        readBy: [],
-      ),
-    );
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.black12,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Reply to ${repliedMessage.senderId == _firestoreService.currentUserId ? 'you' : 'message'}',
-            style: const TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey,
-            ),
-          ),
-          Text(
-            repliedMessage.text,
-            style: const TextStyle(fontSize: 12),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMessageStatus(ChatMessage message) {
-    if (message.status == 'sent') {
-      return const Icon(Icons.check, size: 16, color: Colors.white70);
-    } else if (message.status == 'delivered') {
-      return const Icon(Icons.done_all, size: 16, color: Colors.white70);
-    } else if (message.status == 'read') {
-      return const Icon(Icons.done_all, size: 16, color: Colors.blue);
-    }
-    return const SizedBox.shrink();
   }
 
   Widget _buildMessageInput() {
@@ -342,6 +422,7 @@ class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
               ),
               maxLines: null,
               onChanged: _onMessageChanged,
+              onSubmitted: (_) => _sendMessage(),
             ),
           ),
           
@@ -361,6 +442,8 @@ class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
   }
 
   void _onMessageChanged(String text) {
+    if (_currentChatId == null) return;
+    
     if (!_isTyping && text.isNotEmpty) {
       _isTyping = true;
       _chatService.setTypingStatus(_currentChatId!, true);
@@ -376,8 +459,19 @@ class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
   }
 
   void _sendMessage() {
+    if (_currentChatId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chat not initialized')),
+      );
+      return;
+    }
+    
     if (_messageController.text.trim().isNotEmpty) {
-      _chatService.sendMessage(_currentChatId!, _messageController.text.trim());
+      _chatService.sendMessage(_currentChatId!, _messageController.text.trim()).catchError((error) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to send message: $error')),
+        );
+      });
       _messageController.clear();
       
       // Stop typing indicator
@@ -518,10 +612,17 @@ class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              // Handle clear chat
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Chat cleared')),
-              );
+              if (_currentChatId != null) {
+                _chatService.clearChat(_currentChatId!).then((_) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Chat cleared')),
+                  );
+                }).catchError((error) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to clear chat: $error')),
+                  );
+                });
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Clear', style: TextStyle(color: Colors.white)),
@@ -543,13 +644,5 @@ class _RealtimeChatScreenState extends State<RealtimeChatScreen> {
     } else {
       return '${time.day}/${time.month}/${time.year}';
     }
-  }
-
-  @override
-  void dispose() {
-    _typingTimer?.cancel();
-    _messageController.dispose();
-    _scrollController.dispose();
-    super.dispose();
   }
 } 

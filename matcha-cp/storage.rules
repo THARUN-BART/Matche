@@ -5,6 +5,98 @@ rules_version = '2';
 //    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
 service firebase.storage {
   match /b/{bucket}/o {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is accessing their own files
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Helper function to validate image files
+    function isValidImage() {
+      return request.resource.contentType.matches('image/.*') &&
+             request.resource.size < 5 * 1024 * 1024; // 5MB limit
+    }
+    
+    // Helper function to validate document files
+    function isValidDocument() {
+      return request.resource.contentType.matches('application/pdf') ||
+             request.resource.contentType.matches('application/msword') ||
+             request.resource.contentType.matches('application/vnd.openxmlformats-officedocument.wordprocessingml.document') &&
+             request.resource.size < 10 * 1024 * 1024; // 10MB limit
+    }
+
+    // User profile pictures - users can upload/read their own
+    match /users/{userId}/profile/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) && isValidImage();
+    }
+    
+    // User documents - users can upload/read their own
+    match /users/{userId}/documents/{fileName} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && isValidDocument();
+    }
+    
+    // Group files - group members can read, admins can write
+    match /groups/{groupId}/files/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && 
+        (isValidImage() || isValidDocument());
+    }
+    
+    // Chat attachments - chat participants can read/write
+    match /chats/{chatId}/attachments/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && 
+        (isValidImage() || isValidDocument());
+    }
+    
+    // Public files - anyone can read, authenticated users can write
+    match /public/{fileName} {
+      allow read: if true;
+      allow write: if isAuthenticated() && 
+        (isValidImage() || isValidDocument());
+    }
+    
+    // Group media
+    match /groups/{groupId}/media/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && 
+        firestore.get(/databases/(default)/documents/groups/$(groupId)/members/$(request.auth.uid)).data != null;
+    }
+    
+    // Group chat media
+    match /groupChats/{groupId}/media/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && 
+        firestore.get(/databases/(default)/documents/groups/$(groupId)/members/$(request.auth.uid)).data != null;
+    }
+    
+    // Club media
+    match /clubs/{clubId}/media/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && 
+        firestore.get(/databases/(default)/documents/clubs/$(clubId)).data.members[request.auth.uid] != null;
+    }
+    
+    // App assets (logos, icons, etc.)
+    match /app/{fileName} {
+      allow read: if true; // Public read access
+      allow write: if false; // Only admin can upload
+    }
+    
+    // Temporary uploads (for processing)
+    match /temp/{userId}/{fileName} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+    
+    // Default rule - deny all other access
     match /{allPaths=**} {
       allow read, write: if false;
     }

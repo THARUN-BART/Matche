@@ -22,7 +22,7 @@ final List<String> allSkills = [
   // Data Science & AI
   'Machine Learning', 'Deep Learning', 'TensorFlow', 'PyTorch', 'Pandas', 'NumPy',
   'Scikit-learn', 'Data Analysis', 'Data Visualization', 'Tableau', 'Power BI',
-  'Apache Spark', 'Hadoop', 'Jupyter', 'Matplotlib', 'Seaborn','Ai','Generative Ai'
+  'Apache Spark', 'Hadoop', 'Jupyter', 'Matplotlib', 'Seaborn','Ai','Generative Ai',
 
   // Design
   'UI/UX Design', 'Figma', 'Adobe XD', 'Sketch', 'Photoshop', 'Illustrator',

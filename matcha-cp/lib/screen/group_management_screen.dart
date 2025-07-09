@@ -162,8 +162,8 @@ class _GroupManagementScreenState extends State<GroupManagementScreen> with Sing
   }
 
   Widget _buildInviteTab() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
+    final TextEditingController _emailController = TextEditingController();
+    return SingleChildScrollView(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -298,6 +298,78 @@ class _GroupManagementScreenState extends State<GroupManagementScreen> with Sing
                       backgroundColor: Colors.purple,
                       foregroundColor: Colors.white,
                     ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Invite by Email Section
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Invite by Email',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Send an invitation to join this group by email.',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _emailController,
+                          decoration: const InputDecoration(
+                            labelText: 'Email',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.all(Radius.circular(30)),
+                            ),
+                            isDense: true,
+                          ),
+                          keyboardType: TextInputType.emailAddress,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            final email = _emailController.text.trim();
+                            if (email.isEmpty) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Please enter an email address')),
+                              );
+                              return;
+                            }
+                            try {
+                              final groupService = Provider.of<GroupService>(context, listen: false);
+                              await groupService.sendGroupInviteByEmail(widget.groupId, email);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Invitation sent to $email')),
+                              );
+                              _emailController.clear();
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Failed to send invite: $e')),
+                              );
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+                          ),
+                          child: const Text('Send Invite'),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -507,9 +579,53 @@ class _GroupManagementScreenState extends State<GroupManagementScreen> with Sing
   }
 
   void _editGroupDetails() {
-    // Implement group editing functionality
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Edit group details coming soon...')),
+    final nameCtrl = TextEditingController(text: widget.group['name']);
+    final descCtrl = TextEditingController(text: widget.group['description']);
+    final memberCountCtrl = TextEditingController(text: (widget.group['maxMembers'] ?? 10).toString());
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Group'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: 'Group Name'),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: descCtrl,
+                decoration: const InputDecoration(labelText: 'Description'),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: memberCountCtrl,
+                decoration: const InputDecoration(labelText: 'Max Members'),
+                keyboardType: TextInputType.number,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              await Provider.of<GroupService>(context, listen: false).updateGroup(
+                groupId: widget.groupId,
+                name: nameCtrl.text,
+                description: descCtrl.text,
+                maxMembers: int.tryParse(memberCountCtrl.text) ?? 10,
+              );
+              Navigator.pop(context);
+              setState(() {}); // Refresh group info
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
   }
 

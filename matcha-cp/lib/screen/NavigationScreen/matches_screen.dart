@@ -6,6 +6,7 @@ import '../../service/firestore_service.dart';
 import '../../widget/chat_screen.dart';
 import '../../widget/connection_card.dart';
 import '../../widget/profile_viewer_screen.dart';
+import '../../widget/skeleton_loading.dart';
 
 class MatchesScreen extends StatefulWidget {
   const MatchesScreen({super.key});
@@ -18,12 +19,38 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
   late TabController _tabController;
   Set<String> _connectedUserIds = {};
   Set<String> _sentRequestUserIds = {};
+  Set<String> _rejectedRequestUserIds = {};
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _fetchConnectionsAndRequests();
+    
+    // Check if we need to navigate to a specific tab
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkTabArguments();
+    });
+  }
+
+  void _checkTabArguments() {
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    if (args != null) {
+      final tab = args['tab'] as String?;
+      if (tab != null) {
+        switch (tab) {
+          case 'requests':
+            _tabController.animateTo(2); // Requests tab
+            break;
+          case 'suggestions':
+            _tabController.animateTo(1); // Suggestions tab
+            break;
+          case 'matches':
+            _tabController.animateTo(0); // Matches tab
+            break;
+        }
+      }
+    }
   }
 
   Future<void> _fetchConnectionsAndRequests() async {
@@ -40,6 +67,19 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
     firestoreService.getSentConnectionRequests().listen((snapshot) {
       setState(() {
         _sentRequestUserIds = snapshot.docs.map((doc) => doc.id).toSet();
+      });
+    });
+
+    // Listen to rejected requests
+    _listenToRejectedRequests();
+  }
+
+  Future<void> _listenToRejectedRequests() async {
+    final firestoreService = Provider.of<FirestoreService>(context, listen: false);
+    
+    firestoreService.getRejectedConnectionRequests().listen((snapshot) {
+      setState(() {
+        _rejectedRequestUserIds = snapshot.docs.map((doc) => doc.id).toSet();
       });
     });
   }
@@ -87,7 +127,7 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const SkeletonList(itemCount: 5);
         }
 
         final connections = snapshot.data?.docs ?? [];
@@ -122,8 +162,9 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
                 return ConnectionCard(
                   user: user,
                   isConnected: true,
-                  onTap: () => _openProfile(context, user, connectionId.toString()),
-                  onMessage: () => _openChat(context, connectionId.toString()),
+                  hasSentRequest: false,
+                  onTap: () => _openProfile(context, user, connectionId),
+                  onMessage: () => _openChat(context, connectionId),
                 );
               },
             );
@@ -145,7 +186,7 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const SkeletonList(itemCount: 5);
         }
 
         final suggestions = snapshot.data?.docs ?? [];
@@ -184,15 +225,63 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
                 final user = userSnapshot.data!.data() as Map<String, dynamic>;
 
                 final hasSentRequest = _sentRequestUserIds.contains(suggestionId);
+                final hasRejectedRequest = _rejectedRequestUserIds.contains(suggestionId);
 
                 return ConnectionCard(
                   user: user,
                   isConnected: false,
                   hasSentRequest: hasSentRequest,
-                  onTap: () => _openProfile(context, user, suggestionId.toString()),
-                  onConnect: hasSentRequest
+                  onTap: () => _openProfile(context, user, suggestionId),
+                  onConnect: (hasSentRequest || hasRejectedRequest)
                       ? null
-                      : () => _sendConnectionRequest(context, suggestionId.toString()),
+                      : () async {
+                          setState(() {
+                            _sentRequestUserIds.add(suggestionId);
+                          });
+                          try {
+                            await Provider.of<FirestoreService>(context, listen: false)
+                                .sendConnectionRequest(
+                                    Provider.of<FirestoreService>(context, listen: false).currentUserId, suggestionId);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Connection requested!'), backgroundColor: Colors.green),
+                            );
+                            return true;
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
+                            );
+                            setState(() {
+                              _sentRequestUserIds.remove(suggestionId);
+                            });
+                            return false;
+                          }
+                        },
+                  onResend: hasRejectedRequest
+                      ? () async {
+                          setState(() {
+                            _sentRequestUserIds.add(suggestionId);
+                            _rejectedRequestUserIds.remove(suggestionId);
+                          });
+                          try {
+                            await Provider.of<FirestoreService>(context, listen: false)
+                                .sendConnectionRequest(
+                                    Provider.of<FirestoreService>(context, listen: false).currentUserId, suggestionId);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Connection requested!'), backgroundColor: Colors.green),
+                            );
+                            return true;
+                          } catch (e) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
+                            );
+                            setState(() {
+                              _sentRequestUserIds.remove(suggestionId);
+                              _rejectedRequestUserIds.add(suggestionId);
+                            });
+                            return false;
+                          }
+                        }
+                      : null,
                 );
               },
             );
@@ -209,10 +298,10 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
       stream: firestoreService.getReceivedConnectionRequests(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return Center(child: Text('Error: \\${snapshot.error}'));
+          return Center(child: Text('Error: ${snapshot.error}'));
         }
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return const SkeletonList(itemCount: 5);
         }
         final requests = snapshot.data?.docs ?? [];
         if (requests.isEmpty) {
@@ -223,7 +312,9 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
           itemCount: requests.length,
           itemBuilder: (context, index) {
             final request = requests[index];
-            final fromUserId = request['from'];
+            final requestData = request.data() as Map<String, dynamic>;
+            final fromUserId = requestData['from'] as String;
+            
             return FutureBuilder<DocumentSnapshot>(
               future: firestoreService.getUserById(fromUserId),
               builder: (context, userSnapshot) {
@@ -283,7 +374,7 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
         MaterialPageRoute(
           builder: (context) => ProfileViewScreen(
             user: user, 
-            userId: userId.toString(),
+            userId: userId,
           ),
         ),
       );
@@ -331,14 +422,68 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
   }
 
   Future<void> _acceptConnectionRequest(String requestId, String fromUserId) async {
-    final firestoreService = Provider.of<FirestoreService>(context, listen: false);
-    await firestoreService.acceptConnectionRequest(requestId, fromUserId);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Connection accepted')));
+    try {
+      final firestoreService = Provider.of<FirestoreService>(context, listen: false);
+      await firestoreService.acceptConnectionRequest(requestId, fromUserId);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Connection accepted!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to accept connection: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _declineConnectionRequest(String requestId) async {
+    try {
+      final firestoreService = Provider.of<FirestoreService>(context, listen: false);
+      await firestoreService.rejectConnectionRequest(requestId);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Connection declined'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to decline connection: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _resendConnectionRequest(BuildContext context, String recipientId) async {
     final firestoreService = Provider.of<FirestoreService>(context, listen: false);
-    await firestoreService.rejectConnectionRequest(requestId);
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Connection declined')));
+    final currentUserId = firestoreService.currentUserId;
+
+    try {
+      await firestoreService.sendConnectionRequest(currentUserId, recipientId);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Connection request sent')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to resend request: $e')),
+      );
+    }
   }
 }

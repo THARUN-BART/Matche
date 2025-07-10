@@ -202,17 +202,21 @@ class GroupService {
       final user = _auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
-      // Check if user is admin
-      final memberDoc = await _firestore
-          .collection('groups')
-          .doc(groupId)
-          .collection('members')
-          .doc(user.uid)
-          .get();
+      // Allow admin to add anyone, or user to add themselves
+      if (user.uid != userId) {
+        // Only admin can add others
+        final memberDoc = await _firestore
+            .collection('groups')
+            .doc(groupId)
+            .collection('members')
+            .doc(user.uid)
+            .get();
 
-      if (!memberDoc.exists || memberDoc.data()?['role'] != 'admin') {
-        throw Exception('Only admins can add members');
+        if (!memberDoc.exists || memberDoc.data()?['role'] != 'admin') {
+          throw Exception('Only admins can add other members');
+        }
       }
+      // If user.uid == userId, allow (user is adding themselves)
 
       // Check if user is already a member
       final existingMember = await _firestore

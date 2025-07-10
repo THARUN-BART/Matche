@@ -10,6 +10,7 @@ import 'package:matcha/service/group_service.dart';
 import 'package:matcha/service/realtime_chat_service.dart';
 import 'package:matcha/splash_screen.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 Future _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (Firebase.apps.isEmpty) {
@@ -23,7 +24,6 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
-    // Initialize Firebase only if not already initialized
     if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
     }
@@ -36,7 +36,15 @@ Future<void> main() async {
     
     // Initialize notification service
     await NotificationService().initialize();
-    
+    await FirebaseMessaging.instance.requestPermission();
+
+    // Save FCM token to Firestore (after login)
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final token = await FirebaseMessaging.instance.getToken();
+      await FirestoreService().saveFcmToken(user.uid, token);
+    }
+
     runApp(MultiProvider(
       providers: [
         Provider<FirestoreService>(create: (_) => FirestoreService()),
@@ -102,7 +110,6 @@ class _MatchaState extends State<Matcha> with WidgetsBindingObserver {
         _setOnlineStatus(false);
         break;
       case AppLifecycleState.hidden:
-        // Handle hidden state if needed
         break;
     }
   }
@@ -120,21 +127,7 @@ class _MatchaState extends State<Matcha> with WidgetsBindingObserver {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       home: SplashScreen(),
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.green,
-          brightness: Brightness.light,
-        ),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.green,
-          brightness: Brightness.dark,
-        ),
-      ),
-      themeMode: ThemeMode.system,
+      theme: ThemeData.dark(useMaterial3: true)
     );
   }
 }

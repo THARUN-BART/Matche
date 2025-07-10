@@ -200,10 +200,32 @@ class _SignupState extends State<Signup> {
           firstDate: DateTime(1900),
           lastDate: now,
         );
+
         if (picked != null) {
+          final age = now.year - picked.year -
+              ((now.month < picked.month || (now.month == picked.month && now.day < picked.day)) ? 1 : 0);
+
+          if (age <= 13) {
+
+            showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                title: Text('Age Restriction'),
+                content: Text('You must be at least 13 years old to use this feature.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('OK'),
+                  ),
+                ],
+              ),
+            );
+            return; // Reject the date selection
+          }
+
           setState(() {
             selectedDOB = picked;
-            calculatedAge = now.year - picked.year - ((now.month < picked.month || (now.month == picked.month && now.day < picked.day)) ? 1 : 0);
+            calculatedAge = age;
           });
         }
       },
@@ -236,7 +258,8 @@ class _SignupState extends State<Signup> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("SIGN UP", style: GoogleFonts.salsa(fontSize: 32)),
+        title: Text("Create An Account", style: GoogleFonts.salsa(fontSize: 32,color: Color(0xFFFFEC3D))),
+        shadowColor: Color(0xFFFFEC3D),
         centerTitle: true,
       ),
       body: SingleChildScrollView(

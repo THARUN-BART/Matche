@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -382,6 +383,31 @@ class NotificationService {
       title,
       body,
       platformChannelSpecifics,
+    );
+  }
+
+  Future<void> sendFCMNotification({
+    required String token,
+    required String title,
+    required String body,
+  }) async {
+    const serverKey = 'YOUR_SERVER_KEY'; // Replace with your FCM server key
+    await http.post(
+      Uri.parse('https://fcm.googleapis.com/fcm/send'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'key=$serverKey',
+      },
+      body: jsonEncode({
+        'to': token,
+        'notification': {
+          'title': title,
+          'body': body,
+        },
+        'data': {
+          'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+        },
+      }),
     );
   }
 

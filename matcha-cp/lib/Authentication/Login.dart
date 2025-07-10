@@ -35,16 +35,17 @@ class _LoginState extends State<Login> {
     showDialog(
       context: context,
       builder:
-          (_) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("OK"),
+          (_) =>
+          AlertDialog(
+            title: Text(title),
+            content: Text(message),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("OK"),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -60,14 +61,16 @@ class _LoginState extends State<Login> {
     try {
       setState(() => _isLoading = true);
 
-      final userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+      final userCredential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
       // Store FCM token after successful login
       if (userCredential.user != null) {
-        await NotificationService().storeTokenAfterLogin(userCredential.user!.uid);
+        await NotificationService().storeTokenAfterLogin(
+            userCredential.user!.uid);
       }
 
       Navigator.pushAndRemoveUntil(
@@ -100,42 +103,43 @@ class _LoginState extends State<Login> {
     showDialog(
       context: context,
       builder:
-          (context) => AlertDialog(
-        title: const Text("Reset Password"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "Enter your email address and we'll send you a link to reset your password.",
-              style: TextStyle(fontSize: 14),
+          (context) =>
+          AlertDialog(
+            title: const Text("Reset Password"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  "Enter your email address and we'll send you a link to reset your password.",
+                  style: TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _forgotPasswordEmailController,
+                  decoration: const InputDecoration(
+                    border: OutlineInputBorder(),
+                    labelText: "Email",
+                    hintText: 'Enter your email',
+                    prefixIcon: Icon(Icons.email_outlined),
+                  ),
+                  keyboardType: TextInputType.emailAddress,
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _forgotPasswordEmailController,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: "Email",
-                hintText: 'Enter your email',
-                prefixIcon: Icon(Icons.email_outlined),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("CANCEL"),
               ),
-              keyboardType: TextInputType.emailAddress,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("CANCEL"),
+              TextButton(
+                onPressed: () {
+                  _verifyEmailAndSendReset();
+                  Navigator.pop(context);
+                },
+                child: const Text("SEND RESET LINK"),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () {
-              _verifyEmailAndSendReset();
-              Navigator.pop(context);
-            },
-            child: const Text("SEND RESET LINK"),
-          ),
-        ],
-      ),
     );
   }
 
@@ -192,112 +196,108 @@ class _LoginState extends State<Login> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            pinned: true,
-            expandedHeight: 200.0,
-            backgroundColor: Colors.black,
-            flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                "LOGIN",
-                style: GoogleFonts.salsa(fontSize: 32, color: Colors.white),
-              ),
-              centerTitle: true,
-              background: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF0347F4), Colors.blue],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                ),
-              ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Image.asset(
+              'Assets/IC.png',
+              height: 300,
             ),
           ),
-          SliverToBoxAdapter(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  const SizedBox(height: 50),
-                  const Text(
-                    'Welcome Back! Please login to continue.',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: TextField(
-                      controller: _emailController,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        labelText: "Email",
-                        hintText: 'abc@gmail.com',
-                        prefixIcon: Icon(Icons.email_outlined),
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: TextField(
-                      controller: _passwordController,
-                      obscureText: _obsecureText,
-                      decoration: InputDecoration(
-                        border: const OutlineInputBorder(),
-                        labelText: "Password",
-                        prefixIcon: const Icon(Icons.key),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obsecureText
-                                ? Icons.visibility_off
-                                : Icons.visibility,
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _obsecureText = !_obsecureText;
-                            });
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: _showForgotPasswordDialog,
-                        child: const Text(
-                          'Forgot Password?',
-                          style: TextStyle(fontSize: 18, color: Colors.blue),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  _isLoading
-                      ? const CircularProgressIndicator()
-                      : GradientButton(text: "LOGIN", onPressed: _login),
-                  const SizedBox(height: 30),
 
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text("Don't have an account?"),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => Signup()),
-                          );
-                        },
-                        child: Text(
-                          "Sign Up",
-                          style: TextStyle(color: Colors.blue),
-                        ),
-                      ),
-                    ],
+          Expanded(
+            child: Column(
+              children: [
+                Text(
+                  'Sign In',
+                  style: GoogleFonts.salsa(
+                    textStyle: TextStyle(
+                      fontSize: 50,
+                      color: Color(0xFFFFEC3D),
+                    ),
                   ),
-                ],
-              ),
+                ),
+                SizedBox(height: 20),
+
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: TextField(
+                    controller: _emailController,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: "Email",
+                      hintText: 'abc@gmail.com',
+                      prefixIcon: Icon(Icons.email_outlined),
+                    ),
+                  ),
+                ),
+
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: TextField(
+                    controller: _passwordController,
+                    obscureText: _obsecureText,
+                    decoration: InputDecoration(
+                      border: const OutlineInputBorder(),
+                      labelText: "Password",
+                      prefixIcon: const Icon(Icons.key),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obsecureText
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obsecureText = !_obsecureText;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: _showForgotPasswordDialog,
+                      child: const Text(
+                        'Forgot Password?',
+                        style: TextStyle(fontSize: 18, color: Colors.blue),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+
+                _isLoading
+                    ? const CircularProgressIndicator()
+                    : GradientButton(text: "LOGIN", onPressed: _login),
+
+                const SizedBox(height: 30),
+
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text("Don't have an account?"),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => Signup()),
+                        );
+                      },
+                      child: Text(
+                        "Sign Up",
+                        style: TextStyle(color: Colors.blue),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],

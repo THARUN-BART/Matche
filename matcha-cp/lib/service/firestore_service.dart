@@ -80,7 +80,7 @@ class FirestoreService {
     await batch.commit();
 
     // Notify the sender that the request was accepted
-    await sendConnectionAcceptedNotification(currentUserId, targetUserId);
+    await _sendConnectionAcceptedNotification(currentUserId, targetUserId);
   }
 
   /// Create a group
@@ -111,13 +111,14 @@ class FirestoreService {
     });
   }
 
-  /// Get messages for a chat
-  Stream<QuerySnapshot> getChatMessages(String chatId) {
+  /// Get messages for a group/general chat
+  Stream<QuerySnapshot> getGroupChatMessages(String groupId) {
     return _firestore
-        .collection('chats')
-        .doc(chatId)
+        .collection('groups')
+        .doc(groupId)
         .collection('messages')
         .orderBy('timestamp', descending: true)
+        .limit(100) // Added limit to prevent loading too many messages
         .snapshots();
   }
 
@@ -126,6 +127,7 @@ class FirestoreService {
     return _firestore
         .collection('users')
         .where('uid', isNotEqualTo: currentUserId)
+        .limit(50) // Added limit
         .snapshots();
   }
 
@@ -181,8 +183,8 @@ class FirestoreService {
       toUserId: toId,
       title: 'New Connection Request',
       body: 'Someone wants to connect with you',
+      type: 'connection_request',
       data: {
-        'type': 'connection_request',
         'fromUserId': fromId,
       },
     );
@@ -216,14 +218,18 @@ class FirestoreService {
   }
 
   /// Accept a connection request
-  Future<void> acceptConnectionRequest(String requestId, String fromUserId) async {
+  Future<void> acceptConnectionRequest({
+    required String requestId,
+    required String fromUserId,
+    required String toUserId,
+  }) async {
     try {
       // Get the request document first to verify it exists and is pending
       final requestDoc = await _firestore.collection('connectionRequests').doc(requestId).get();
       if (!requestDoc.exists) {
         throw Exception('Connection request not found');
       }
-      
+
       final requestData = requestDoc.data();
       if (requestData?['status'] != 'pending') {
         throw Exception('Connection request is no longer pending');
@@ -251,10 +257,12 @@ class FirestoreService {
         {'timestamp': FieldValue.serverTimestamp()},
       );
 
-      // Update the request status
+      // Update the request status (include all required fields)
       batch.update(
         _firestore.collection('connectionRequests').doc(requestId),
         {
+          'from': requestData?['from'],
+          'to': requestData?['to'],
           'status': 'accepted',
           'acceptedAt': FieldValue.serverTimestamp(),
         },
@@ -277,8 +285,8 @@ class FirestoreService {
         toUserId: fromUserId,
         title: 'Connection Accepted!',
         body: 'Your connection request has been accepted',
+        type: 'connection_accepted',
         data: {
-          'type': 'connection_accepted',
           'acceptedBy': currentUserId,
         },
       );
@@ -288,8 +296,8 @@ class FirestoreService {
         toUserId: currentUserId,
         title: 'New Connection',
         body: 'You are now connected with a new person',
+        type: 'connection_made',
         data: {
-          'type': 'connection_made',
           'connectedWith': fromUserId,
         },
       );
@@ -307,10 +315,11 @@ class FirestoreService {
       if (!requestDoc.exists) {
         throw Exception('Connection request not found');
       }
-      
+
       final requestData = requestDoc.data();
       final fromUserId = requestData?['from'] as String?;
-      
+      final toUserId = requestData?['to'] as String?;
+
       if (requestData?['status'] != 'pending') {
         throw Exception('Connection request is no longer pending');
       }
@@ -318,10 +327,12 @@ class FirestoreService {
       // Use a batch to ensure atomic operations
       final batch = _firestore.batch();
 
-      // Update the request status
+      // Update the request status (include all required fields)
       batch.update(
         _firestore.collection('connectionRequests').doc(requestId),
         {
+          'from': requestData?['from'],
+          'to': requestData?['to'],
           'status': 'rejected',
           'rejectedAt': FieldValue.serverTimestamp(),
         },
@@ -347,8 +358,8 @@ class FirestoreService {
           toUserId: fromUserId,
           title: 'Connection Request Declined',
           body: 'Your connection request was declined',
+          type: 'connection_rejected',
           data: {
-            'type': 'connection_rejected',
             'rejectedBy': currentUserId,
           },
         );
@@ -360,7 +371,7 @@ class FirestoreService {
   }
 
   /// Send a notification when a connection is accepted
-  Future<void> sendConnectionAcceptedNotification(String fromUserId, String toUserId) async {
+  Future<void> _sendConnectionAcceptedNotification(String fromUserId, String toUserId) async {
     await _firestore.collection('notifications').add({
       'type': 'connection_accepted',
       'from': fromUserId,
@@ -377,6 +388,7 @@ class FirestoreService {
         .where('to', isEqualTo: currentUserId)
         .where('read', isEqualTo: false)
         .orderBy('timestamp', descending: true)
+        .limit(50)
         .snapshots();
   }
 
@@ -384,7 +396,7 @@ class FirestoreService {
   Future<List<Map<String, dynamic>>> searchUsers(String query) async {
     try {
       final queryLower = query.toLowerCase();
-      
+
       // Search by name
       final nameQuery = await _firestore
           .collection('users')
@@ -403,13 +415,13 @@ class FirestoreService {
 
       // Combine and deduplicate results
       final allDocs = <String, DocumentSnapshot>{};
-      
+
       for (var doc in nameQuery.docs) {
         if (doc.id != currentUserId) {
           allDocs[doc.id] = doc;
         }
       }
-      
+
       for (var doc in emailQuery.docs) {
         if (doc.id != currentUserId) {
           allDocs[doc.id] = doc;
@@ -505,16 +517,6 @@ class FirestoreService {
     });
   }
 
-  /// Get messages for a group chat
-  Stream<QuerySnapshot> getGroupChatMessages(String groupId) {
-    return _firestore
-        .collection('groups')
-        .doc(groupId)
-        .collection('messages')
-        .orderBy('timestamp', descending: true)
-        .snapshots();
-  }
-
   /// Add member to group (admin only)
   Future<void> addMemberToGroup(String groupId, String userId) async {
     // Check if current user is admin
@@ -522,7 +524,7 @@ class FirestoreService {
     if (groupDoc.data()?['admin'] != currentUserId) {
       throw Exception('Only group admin can add members');
     }
-    
+
     await _firestore.collection('groups').doc(groupId).update({
       'members': FieldValue.arrayUnion([userId]),
     });
@@ -535,12 +537,12 @@ class FirestoreService {
     if (groupDoc.data()?['admin'] != currentUserId) {
       throw Exception('Only group admin can remove members');
     }
-    
+
     // Prevent admin from removing themselves
     if (userId == currentUserId) {
       throw Exception('Admin cannot remove themselves from group');
     }
-    
+
     await _firestore.collection('groups').doc(groupId).update({
       'members': FieldValue.arrayRemove([userId]),
     });
@@ -554,12 +556,12 @@ class FirestoreService {
     if (groupData?['admin'] != currentUserId) {
       throw Exception('Only group admin can transfer admin role');
     }
-    
+
     // Check if new admin is a member
     if (!(groupData?['members'] as List).contains(newAdminId)) {
       throw Exception('New admin must be a group member');
     }
-    
+
     await _firestore.collection('groups').doc(groupId).update({
       'admin': newAdminId,
     });
@@ -618,7 +620,7 @@ class FirestoreService {
     }
 
     final userId = userQuery.docs.first.id;
-    
+
     // Check if user is already a member
     final clubData = clubDoc.data();
     if ((clubData?['members'] as List).contains(userId)) {
@@ -635,8 +637,8 @@ class FirestoreService {
       toUserId: userId,
       title: 'Club Invitation',
       body: 'You have been added to a club',
+      type: 'club_added',
       data: {
-        'type': 'club_added',
         'clubId': clubId,
       },
     );
@@ -661,7 +663,7 @@ class FirestoreService {
     }
 
     final userId = userQuery.docs.first.id;
-    
+
     // Check if user is already a member
     final clubData = clubDoc.data();
     if ((clubData?['members'] as List).contains(userId)) {
@@ -683,8 +685,8 @@ class FirestoreService {
       toUserId: userId,
       title: 'Club Invitation',
       body: 'You have been invited to join a club',
+      type: 'club_invitation',
       data: {
-        'type': 'club_invitation',
         'clubId': clubId,
       },
     );
@@ -728,12 +730,12 @@ class FirestoreService {
     if (clubDoc.data()?['admin'] != currentUserId) {
       throw Exception('Only club admin can remove members');
     }
-    
+
     // Prevent admin from removing themselves
     if (userId == currentUserId) {
       throw Exception('Admin cannot remove themselves from club');
     }
-    
+
     await _firestore.collection('clubs').doc(clubId).update({
       'members': FieldValue.arrayRemove([userId]),
     });
@@ -753,7 +755,7 @@ class FirestoreService {
         .doc(clubId)
         .collection('messages')
         .get();
-    
+
     final batch = _firestore.batch();
     for (var doc in messagesQuery.docs) {
       batch.delete(doc.reference);
@@ -764,7 +766,7 @@ class FirestoreService {
         .collection('club_invitations')
         .where('clubId', isEqualTo: clubId)
         .get();
-    
+
     for (var doc in invitationsQuery.docs) {
       batch.delete(doc.reference);
     }
@@ -785,7 +787,7 @@ class FirestoreService {
   Future<List<Map<String, dynamic>>> getClubMembers(String clubId) async {
     final clubDoc = await _firestore.collection('clubs').doc(clubId).get();
     final memberIds = clubDoc.data()?['members'] as List? ?? [];
-    
+
     List<Map<String, dynamic>> members = [];
     for (String memberId in memberIds) {
       final userDoc = await _firestore.collection('users').doc(memberId).get();
@@ -799,7 +801,7 @@ class FirestoreService {
         });
       }
     }
-    
+
     return members;
   }
 
@@ -808,15 +810,18 @@ class FirestoreService {
     required String toUserId,
     required String title,
     required String body,
+    required String type,
     Map<String, dynamic>? data,
   }) async {
-    // Store notification in Firestore
+    final fromUserId = currentUserId;
     await _firestore.collection('notifications').add({
       'to': toUserId,
+      'from': fromUserId,
       'title': title,
       'body': body,
-      'data': data,
+      'type': type,
       'timestamp': FieldValue.serverTimestamp(),
+      'data': data,
       'read': false,
     });
   }
@@ -829,5 +834,108 @@ class FirestoreService {
   /// Update current user profile
   Future<void> updateUserProfile(Map<String, dynamic> data) async {
     await _firestore.collection('users').doc(currentUserId).set(data, SetOptions(merge: true));
+  }
+
+  Future<void> saveFcmToken(String userId, String? token) async {
+    if (token != null) {
+      await FirebaseFirestore.instance.collection('users').doc(userId).update({
+        'fcmToken': token,
+      });
+    }
+  }
+
+  Future<void> respondToConnectionRequest({
+    required String requestId,
+    required bool accept,
+  }) async {
+    final FirebaseFirestore firestore = FirebaseFirestore.instance;
+    final requestRef = firestore.collection('connectionRequests').doc(requestId);
+
+    try {
+      final requestSnapshot = await requestRef.get();
+      if (!requestSnapshot.exists) {
+        throw Exception('Connection request does not exist.');
+      }
+
+      final data = requestSnapshot.data();
+      if (data == null) {
+        throw Exception('Connection request data is null.');
+      }
+
+      final String fromUserId = data['from'];
+      final String toUserId = data['to'];
+
+      if (accept) {
+        // Add each user to the other's connections subcollection
+        final userConnections = firestore.collection('users');
+        final batch = firestore.batch();
+
+        batch.set(
+          userConnections.doc(fromUserId).collection('connections').doc(toUserId),
+          {'connectedAt': FieldValue.serverTimestamp()},
+        );
+        batch.set(
+          userConnections.doc(toUserId).collection('connections').doc(fromUserId),
+          {'connectedAt': FieldValue.serverTimestamp()},
+        );
+        // Delete the connection request
+        batch.delete(requestRef);
+
+        await batch.commit();
+      } else {
+        // Just delete the request
+        await requestRef.delete();
+      }
+    } on FirebaseException catch (e) {
+      throw Exception('Failed to ${accept ? "accept" : "reject"} connection request: ${e.message}');
+    } catch (e) {
+      throw Exception('Failed to ${accept ? "accept" : "reject"} connection request: $e');
+    }
+  }
+
+  /// Get or create a one-to-one chat room between two users
+  Future<String> getOrCreateChatRoom(String userA, String userB) async {
+    final chatRooms = _firestore.collection('chatRooms');
+    // Find existing room
+    final query = await chatRooms
+        .where('participants', arrayContains: userA)
+        .get();
+    for (var doc in query.docs) {
+      final participants = List<String>.from(doc['participants']);
+      if (participants.contains(userB)) {
+        return doc.id; // Room exists
+      }
+    }
+    // Create new room
+    final docRef = await chatRooms.add({
+      'participants': [userA, userB],
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    return docRef.id;
+  }
+
+  /// Send a message to a one-to-one chat room
+  Future<void> sendMessageToChatRoom(String chatRoomId, String text) async {
+    final userId = currentUserId;
+    await _firestore
+        .collection('chatRooms')
+        .doc(chatRoomId)
+        .collection('messages')
+        .add({
+      'senderId': userId,
+      'text': text,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Stream messages for a one-to-one chat room
+  Stream<QuerySnapshot> getChatMessages(String chatRoomId) {
+    return _firestore
+        .collection('chatRooms')
+        .doc(chatRoomId)
+        .collection('messages')
+        .orderBy('timestamp')
+        .limit(100) // Added limit
+        .snapshots();
   }
 }

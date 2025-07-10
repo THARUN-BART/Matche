@@ -94,7 +94,8 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Connections'),
+        title: const Text('Connections',style: TextStyle(fontWeight: FontWeight.bold),),
+        centerTitle: true,
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -424,7 +425,11 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
   Future<void> _acceptConnectionRequest(String requestId, String fromUserId) async {
     try {
       final firestoreService = Provider.of<FirestoreService>(context, listen: false);
-      await firestoreService.acceptConnectionRequest(requestId, fromUserId);
+      await firestoreService.acceptConnectionRequest(
+        requestId: requestId,
+        fromUserId: fromUserId,
+        toUserId: firestoreService.currentUserId,
+      );
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

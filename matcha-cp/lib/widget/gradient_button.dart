@@ -7,12 +7,12 @@ class GradientButton extends StatelessWidget {
   final double borderRadius;
   const GradientButton({
     super.key,
-    required this.text, // Button text
+    required this.text,
     required this.onPressed,
     this.gradientColors = const [
       Colors.blue,
       Colors.purple,
-    ], // Default gradient
+    ],
     this.borderRadius = 20.0,
   });
 

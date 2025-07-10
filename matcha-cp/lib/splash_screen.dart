@@ -5,6 +5,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:matcha/Authentication/Login.dart';
 import 'package:matcha/screen/main_navigation.dart';
 
+import 'Authentication/welcome_page.dart';
+
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -25,7 +27,7 @@ class _SplashScreenState extends State<SplashScreen> {
         print('SplashScreen: Timeout reached, forcing navigation to Login');
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => Login()),
+          MaterialPageRoute(builder: (context) => welcome_page()),
         );
       }
     });
@@ -51,7 +53,7 @@ class _SplashScreenState extends State<SplashScreen> {
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => Login()),
+            MaterialPageRoute(builder: (context) => welcome_page()),
           );
         }
       }
@@ -93,7 +95,7 @@ class _SplashScreenState extends State<SplashScreen> {
             if (mounted) {
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) => Login()),
+                MaterialPageRoute(builder: (context) => welcome_page()),
               );
             }
           }
@@ -102,7 +104,7 @@ class _SplashScreenState extends State<SplashScreen> {
           if (mounted) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => Login()),
+              MaterialPageRoute(builder: (context) => welcome_page()),
             );
           }
         }
@@ -111,7 +113,7 @@ class _SplashScreenState extends State<SplashScreen> {
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => Login()),
+            MaterialPageRoute(builder: (context) => welcome_page()),
           );
         }
       }
@@ -120,7 +122,7 @@ class _SplashScreenState extends State<SplashScreen> {
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => Login()),
+          MaterialPageRoute(builder: (context) => welcome_page()),
         );
       }
     }

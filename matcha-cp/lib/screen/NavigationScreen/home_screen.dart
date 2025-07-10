@@ -130,8 +130,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final userId = firestoreService.currentUserId;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Groups', style: TextStyle(fontWeight: FontWeight.bold)),
-        actions: [],
+        title: const Text('Home', style: TextStyle(fontWeight: FontWeight.bold)),
+        centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.black,
@@ -197,6 +197,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                           child: Column(
                                             mainAxisAlignment: MainAxisAlignment.center,
                                             children: [
+                                              CircleAvatar(
+                                                backgroundColor: Colors.blueAccent, // You can customize the color
+                                                child: Text(
+                                                  user['name']?.substring(0, 1).toUpperCase() ?? 'U',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 20,
+                                                  ),
+                                                ),
+                                              ),
                                               Text(user['name'] ?? 'Unknown', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                                               SizedBox(height: 8),
                                               Text('Similarity: ${match['similarity']}%', style: TextStyle(color: Colors.grey[700])),

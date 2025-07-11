@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:matcha/Authentication/Login.dart';
 import 'package:matcha/screen/main_navigation.dart';
+import 'package:matcha/service/notification_service.dart';
 
 import 'Authentication/welcome_page.dart';
 
@@ -133,12 +134,18 @@ class _SplashScreenState extends State<SplashScreen> {
       print('SplashScreen: Getting FCM token...');
       String? token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
-        print('SplashScreen: FCM token obtained, storing...');
+        print('SplashScreen: FCM token obtained: ${token.substring(0, 20)}...');
         await FirebaseFirestore.instance
             .collection('users')
             .doc(userId)
-            .update({'fcmToken': token});
+            .update({
+              'fcmToken': token,
+              'lastTokenUpdate': FieldValue.serverTimestamp(),
+            });
         print('SplashScreen: FCM token stored successfully');
+        
+        // Also store in notification service
+        await NotificationService().storeTokenAfterLogin(userId);
       } else {
         print('SplashScreen: FCM token is null');
       }
@@ -158,8 +165,6 @@ class _SplashScreenState extends State<SplashScreen> {
           children: [
             Image.asset(
               'Assets/Matche_Ic.png',
-              width: 450,
-              height: 450,
             ),
             const SizedBox(height: 20),
             const CircularProgressIndicator(

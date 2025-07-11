@@ -10,9 +10,7 @@ class ProfileViewScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(user['name'] ?? 'Profile'),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        title: Text("Profile Info"),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -75,8 +73,8 @@ class ProfileViewScreen extends StatelessWidget {
                 children: (user['skills'] as List).map<Widget>((skill) {
                   return Chip(
                     label: Text(skill.toString()),
-                    backgroundColor: Colors.green.withOpacity(0.1),
-                    side: BorderSide(color: Colors.green.withOpacity(0.3)),
+                    backgroundColor: Colors.green.withValues(alpha: 0.1),
+                    side: BorderSide(color: Colors.green.withValues(alpha: 0.3)),
                   );
                 }).toList(),
               ),
@@ -93,8 +91,8 @@ class ProfileViewScreen extends StatelessWidget {
                 children: (user['interests'] as List).map<Widget>((interest) {
                   return Chip(
                     label: Text(interest.toString()),
-                    backgroundColor: Colors.blue.withOpacity(0.1),
-                    side: BorderSide(color: Colors.blue.withOpacity(0.3)),
+                    backgroundColor: Colors.blue.withValues(alpha: 0.1),
+                    side: BorderSide(color: Colors.blue.withValues(alpha: 0.3)),
                   );
                 }).toList(),
               ),
@@ -105,17 +103,7 @@ class ProfileViewScreen extends StatelessWidget {
             if (user['availability'] != null) ...[
               _buildSectionTitle('Availability'),
               const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  user['availability'].toString(),
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
+              _buildAvailabilitySection(context, user['availability']),
               const SizedBox(height: 24),
             ],
             
@@ -170,8 +158,148 @@ class ProfileViewScreen extends StatelessWidget {
       style: const TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.bold,
-        color: Colors.black87,
       ),
     );
+  }
+
+  Widget _buildAvailabilitySection(BuildContext context, dynamic availabilityData) {
+    try {
+      // Handle the availability data structure
+      Map<String, dynamic> availability;
+      if (availabilityData is Map<String, dynamic>) {
+        availability = availabilityData;
+      } else {
+        // Fallback for string or other formats
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            availabilityData.toString(),
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        );
+      }
+
+      // Count total slots
+      int totalSlots = 0;
+      availability.forEach((day, slots) {
+        if (slots is List) {
+          totalSlots += slots.length;
+        }
+      });
+
+      if (totalSlots == 0) {
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            'No availability set',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Colors.grey[600],
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        );
+      }
+
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.blue[200]!),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.schedule, color: Colors.blue[700], size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Available Times ($totalSlots slots)',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue[700],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...availability.entries.map((entry) {
+              final day = entry.key;
+              final slots = entry.value;
+              
+              if (slots is! List || slots.isEmpty) {
+                return const SizedBox.shrink();
+              }
+
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 80,
+                      child: Text(
+                        day,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: slots.map<Widget>((slot) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[100],
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.blue[300]!),
+                            ),
+                            child: Text(
+                              slot.toString(),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.blue[700],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      );
+    } catch (e) {
+      // Fallback for any parsing errors
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          'Availability: ${availabilityData.toString()}',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+      );
+    }
   }
 }

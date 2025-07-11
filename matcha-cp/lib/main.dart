@@ -2,6 +2,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'dart:convert';
 import 'package:matcha/firebase_options.dart';
 import 'package:matcha/service/firestore_service.dart';
 import 'package:matcha/service/notification_service.dart';
@@ -12,12 +14,83 @@ import 'package:matcha/splash_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-Future _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+// This needs to be a top-level function
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Ensure Firebase is initialized
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   }
+  
+  // Initialize Firebase Realtime Database
   FirebaseDatabase.instance.databaseURL = 'https://matche-39f37-default-rtdb.firebaseio.com';
-  // Handle background message
+  
+  print('Handling a background message: ${message.messageId}');
+  print('Message data: ${message.data}');
+  print('Message notification: ${message.notification?.title}');
+  
+  // Show local notification for background messages
+  await _showBackgroundNotification(message);
+}
+
+// Show notification when app is in background
+@pragma('vm:entry-point')
+Future<void> _showBackgroundNotification(RemoteMessage message) async {
+  try {
+    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+        FlutterLocalNotificationsPlugin();
+
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+
+    const DarwinInitializationSettings initializationSettingsIOS =
+        DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+    );
+
+    const InitializationSettings initializationSettings = InitializationSettings(
+      android: initializationSettingsAndroid,
+      iOS: initializationSettingsIOS,
+    );
+
+    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+    const AndroidNotificationDetails androidPlatformChannelSpecifics =
+        AndroidNotificationDetails(
+      'matcha_notifications',
+      'Matcha Notifications',
+      channelDescription: 'Notifications for Matcha app',
+      importance: Importance.max,
+      priority: Priority.high,
+      showWhen: true,
+      enableVibration: true,
+      playSound: true,
+    );
+
+    const DarwinNotificationDetails iOSPlatformChannelSpecifics =
+        DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    const NotificationDetails platformChannelSpecifics = NotificationDetails(
+      android: androidPlatformChannelSpecifics,
+      iOS: iOSPlatformChannelSpecifics,
+    );
+
+    await flutterLocalNotificationsPlugin.show(
+      message.hashCode,
+      message.notification?.title ?? 'New Message',
+      message.notification?.body ?? 'You have a new message',
+      platformChannelSpecifics,
+      payload: json.encode(message.data),
+    );
+  } catch (e) {
+    print('Error showing background notification: $e');
+  }
 }
 
 Future<void> main() async {

@@ -40,6 +40,9 @@ class _AccountInfoState extends State<AccountInfo> {
   List<String> _userSkills = [];
   List<String> _filteredSkills = [];
 
+  // Big5 Personality system
+  Map<String, double> _big5Personality = {'O': 0.5, 'C': 0.5, 'E': 0.5, 'A': 0.5, 'N': 0.5};
+
   @override
   void initState() {
     super.initState();
@@ -117,6 +120,18 @@ class _AccountInfoState extends State<AccountInfo> {
           if (_userData?['skills'] != null) {
             _userSkills = List<String>.from(_userData!['skills']);
           }
+
+          // Handle Big5 personality
+          if (_userData?['big5'] != null) {
+            final big5Data = _userData!['big5'] as Map<String, dynamic>;
+            _big5Personality = {
+              'O': (big5Data['O'] ?? 0.5).toDouble(),
+              'C': (big5Data['C'] ?? 0.5).toDouble(),
+              'E': (big5Data['E'] ?? 0.5).toDouble(),
+              'A': (big5Data['A'] ?? 0.5).toDouble(),
+              'N': (big5Data['N'] ?? 0.5).toDouble(),
+            };
+          }
         });
       }
     } catch (e) {
@@ -150,6 +165,7 @@ class _AccountInfoState extends State<AccountInfo> {
         "availability": availability,
         "interests": interests,
         "skills": _userSkills,
+        "big5": _big5Personality,
         "updatedAt": FieldValue.serverTimestamp(),
       });
 
@@ -666,6 +682,99 @@ class _AccountInfoState extends State<AccountInfo> {
     );
   }
 
+  Widget buildPersonalitySection(bool editable) {
+    if (!editable) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Divider(height: 32),
+          ListTile(
+            leading: const Icon(Icons.psychology, color: Colors.deepPurple),
+            title: const Text("Personality Assessment"),
+            subtitle: const Text("Big Five Personality Traits"),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Column(
+              children: [
+                _buildPersonalityTrait('Openness (O)', _big5Personality['O'] ?? 0.5),
+                _buildPersonalityTrait('Conscientiousness (C)', _big5Personality['C'] ?? 0.5),
+                _buildPersonalityTrait('Extraversion (E)', _big5Personality['E'] ?? 0.5),
+                _buildPersonalityTrait('Agreeableness (A)', _big5Personality['A'] ?? 0.5),
+                _buildPersonalityTrait('Neuroticism (N)', _big5Personality['N'] ?? 0.5),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 24),
+        const Text("Personality Assessment", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        const Text("Rate yourself on these personality traits (1-10)", style: TextStyle(color: Colors.grey)),
+        const SizedBox(height: 16),
+        _buildPersonalitySlider('Openness (O)', 'O'),
+        _buildPersonalitySlider('Conscientiousness (C)', 'C'),
+        _buildPersonalitySlider('Extraversion (E)', 'E'),
+        _buildPersonalitySlider('Agreeableness (A)', 'A'),
+        _buildPersonalitySlider('Neuroticism (N)', 'N'),
+      ],
+    );
+  }
+
+  Widget _buildPersonalityTrait(String label, double value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+          ),
+          Expanded(
+            child: LinearProgressIndicator(
+              value: value,
+              backgroundColor: Colors.grey[300],
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.deepPurple),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text('${(value * 10).round()}'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPersonalitySlider(String label, String key) {
+    final value = _big5Personality[key] ?? 0.5;
+    
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+          Slider(
+            value: value,
+            min: 0.0,
+            max: 1.0,
+            divisions: 10,
+            label: (value * 10).round().toString(),
+            onChanged: (newValue) {
+              setState(() {
+                _big5Personality[key] = newValue;
+              });
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = _auth.currentUser;
@@ -730,6 +839,7 @@ class _AccountInfoState extends State<AccountInfo> {
               buildAvailabilityGrid(false),
               buildInterestsSection(false),
               buildSkillsSection(false),
+              buildPersonalitySection(false),
 
               const SizedBox(height: 24),
               Center(
@@ -798,6 +908,7 @@ class _AccountInfoState extends State<AccountInfo> {
               buildAvailabilityGrid(true),
               buildInterestsSection(true),
               buildSkillsSection(true),
+              buildPersonalitySection(true),
 
               const SizedBox(height: 24),
               Row(

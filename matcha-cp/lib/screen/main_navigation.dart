@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'NavigationScreen/home_screen.dart';
 import 'NavigationScreen/matches_screen.dart';
@@ -62,7 +63,14 @@ class _MainNavigationState extends State<MainNavigation> {
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text("MATCHE", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          "MATCHE",
+          style: GoogleFonts.salsa(
+            color: Color(0xFFFFEC3D),
+            fontSize: 35,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         centerTitle: true,
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,

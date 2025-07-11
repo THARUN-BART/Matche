@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:email_otp/email_otp.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:matcha/screen/main_navigation.dart';
+import 'package:matcha/service/notification_service.dart';
 import '../constants/Constant.dart';
 
 class Signup extends StatefulWidget {
@@ -54,6 +56,36 @@ class _SignupState extends State<Signup> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), backgroundColor: success ? Colors.green : Colors.red),
     );
+  }
+
+  Future<void> _storeFCMTokenForNewUser(String userId) async {
+    try {
+      print('Getting FCM token for new user during signup: $userId');
+      
+      // Get FCM token
+      String? token = await FirebaseMessaging.instance.getToken();
+      
+      if (token != null && token.isNotEmpty) {
+        print('FCM token obtained during signup: ${token.substring(0, 20)}...');
+        
+        // Store token in Firestore immediately
+        await _firestore.collection('users').doc(userId).set({
+          'fcmToken': token,
+          'lastTokenUpdate': FieldValue.serverTimestamp(),
+          'createdAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+        
+        // Also store in notification service
+        await NotificationService().storeTokenAfterLogin(userId);
+        
+        print('FCM token stored successfully during signup: $userId');
+      } else {
+        print('FCM token is null or empty during signup: $userId');
+      }
+    } catch (e) {
+      print('Error storing FCM token during signup: $e');
+      // Don't throw error to avoid blocking signup process
+    }
   }
 
   Future<bool> isEmailRegistered(String email) async {
@@ -110,6 +142,9 @@ class _SignupState extends State<Signup> {
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
+
+      // Get FCM token immediately after user creation
+      await _storeFCMTokenForNewUser(userCred.user!.uid);
 
       // Prepare user data for skills screen
       userData = {
@@ -364,6 +399,35 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
     });
   }
 
+  Future<void> _storeFCMToken(String userId) async {
+    try {
+      print('Getting FCM token for new user: $userId');
+      
+      // Get FCM token
+      String? token = await FirebaseMessaging.instance.getToken();
+      
+      if (token != null && token.isNotEmpty) {
+        print('FCM token obtained for new user: ${token.substring(0, 20)}...');
+        
+        // Store token in Firestore
+        await _firestore.collection('users').doc(userId).update({
+          'fcmToken': token,
+          'lastTokenUpdate': FieldValue.serverTimestamp(),
+        });
+        
+        // Also store in notification service
+        await NotificationService().storeTokenAfterLogin(userId);
+        
+        print('FCM token stored successfully for new user: $userId');
+      } else {
+        print('FCM token is null or empty for new user: $userId');
+      }
+    } catch (e) {
+      print('Error storing FCM token for new user: $e');
+      // Don't throw error to avoid blocking signup process
+    }
+  }
+
   Future<void> _saveAndContinue() async {
     setState(() => _isLoading = true);
 
@@ -371,6 +435,9 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
       // Add skills to user data
       final userData = Map<String, dynamic>.from(widget.userData);
       userData['skills'] = selectedSkills;
+
+      // Get and store FCM token
+      await _storeFCMToken(userData['uid']);
 
       // Save to Firestore
       await _firestore.collection("users").doc(userData['uid']).set(userData);
@@ -397,6 +464,9 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
       // Save user data without skills
       final userData = Map<String, dynamic>.from(widget.userData);
       userData['skills'] = <String>[];
+
+      // Get and store FCM token
+      await _storeFCMToken(userData['uid']);
 
       await _firestore.collection("users").doc(userData['uid']).set(userData);
 

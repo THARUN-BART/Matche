@@ -18,70 +18,11 @@ class _welcome_pageState extends State<welcome_page> {
       body: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          SizedBox(height: 50),
 
-          // Welcome text
-          Padding(
-            padding: const EdgeInsets.all(25),
-            child: Text(
-              "Welcome",
-              style: GoogleFonts.salsa(
-                color: Color(0xFFFFEC3D),
-                fontSize: 35,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-
-          // TO text
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                "To",
-                style: GoogleFonts.salsa(
-                  color: Color(0xFFFFEC3D),
-                  fontSize: 35,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
 
           SizedBox(height: 30),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // First star
-              Icon(
-                Icons.star,
-                color: Color(0xFFFFEC3D),
-                size: 30,
-              ),
-              SizedBox(width: 5),
-              Transform.translate(
-                offset: Offset(0, -10),
-                child: Icon(
-                  Icons.star,
-                  color: Color(0xFFFFEC3D),
-                  size: 20,
-                ),
-              ),
-              SizedBox(width: 10),
-              // MATCHE text
-              Text(
-                "MATCHE",
-                style: GoogleFonts.salsa(
-                  color: Color(0xFFFFEC3D),
-                  fontSize: 40,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-
-          SizedBox(height: 80),
-
+          Image.asset('Assets/Main_IC.png'),
+          SizedBox(height: 25),
           // Login button
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),

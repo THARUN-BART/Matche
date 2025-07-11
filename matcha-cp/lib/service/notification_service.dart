@@ -34,19 +34,26 @@ class NotificationService {
         badge: true,
         sound: true,
         provisional: false,
+        announcement: true,
+        carPlay: true,
+        criticalAlert: true,
       );
 
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-        print('User granted permission');
+        print('User granted notification permission');
       } else {
-        print('User declined or has not accepted permission');
+        print('User declined or has not accepted notification permission: ${settings.authorizationStatus}');
       }
 
       // Get FCM token
       String? token = await _messaging.getToken();
       if (token != null) {
         print('FCM Token: $token');
-        // Store token in Firestore (will be called after login)
+        // Store token in Firestore if user is logged in
+        final currentUser = _auth.currentUser;
+        if (currentUser != null) {
+          await storeTokenAfterLogin(currentUser.uid);
+        }
       }
 
       // Handle token refresh
@@ -62,11 +69,20 @@ class NotificationService {
       // Handle foreground messages
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
-      // Handle notification taps
+      // Handle notification taps when app is opened from background
       FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
+
+      // Handle initial notification when app is opened from terminated state
+      RemoteMessage? initialMessage = await _messaging.getInitialMessage();
+      if (initialMessage != null) {
+        print('App opened from terminated state with notification: ${initialMessage.data}');
+        _handleNotificationTap(initialMessage);
+      }
 
       // Load initial badge count
       await _loadBadgeCount();
+      
+      print('Notification service initialized successfully');
     } catch (e) {
       print('Error initializing notifications: $e');
     }
@@ -133,49 +149,92 @@ class NotificationService {
         onDidReceiveNotificationResponse: _onNotificationTap,
       );
       
+      // Create notification channel for Android
+      await _createNotificationChannel();
+      
       print('Local notifications initialized successfully');
     } catch (e) {
       print('Error initializing local notifications: $e');
     }
   }
 
+  // Create notification channel for Android
+  Future<void> _createNotificationChannel() async {
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      'matcha_notifications',
+      'Matcha Notifications',
+      description: 'Notifications for Matcha app',
+      importance: Importance.max,
+      playSound: true,
+      enableVibration: true,
+      showBadge: true,
+    );
+
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+  }
+
   // Handle foreground messages
   void _handleForegroundMessage(RemoteMessage message) {
     print('Got a message whilst in the foreground!');
     print('Message data: ${message.data}');
+    print('Message notification: ${message.notification?.title} - ${message.notification?.body}');
 
-    if (message.notification != null) {
-      print('Message also contained a notification: ${message.notification}');
-      _showLocalNotification(message);
-    }
+    // Always show local notification for foreground messages
+    _showLocalNotification(message);
+    
+    // Update badge count
+    _badgeCount++;
+    _badgeController.add(_badgeCount);
   }
 
   // Show local notification
   Future<void> _showLocalNotification(RemoteMessage message) async {
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
-      'matcha_notifications',
-      'Matcha Notifications',
-      channelDescription: 'Notifications for Matcha app',
-      importance: Importance.max,
-      priority: Priority.high,
-    );
+    try {
+      const AndroidNotificationDetails androidPlatformChannelSpecifics =
+          AndroidNotificationDetails(
+        'matcha_notifications',
+        'Matcha Notifications',
+        channelDescription: 'Notifications for Matcha app',
+        importance: Importance.max,
+        priority: Priority.high,
+        showWhen: true,
+        enableVibration: true,
+        playSound: true,
+        icon: '@mipmap/ic_launcher',
+        color: Color(0xFF2196F3),
+      );
 
-    const DarwinNotificationDetails iOSPlatformChannelSpecifics =
-        DarwinNotificationDetails();
+      const DarwinNotificationDetails iOSPlatformChannelSpecifics =
+          DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        badgeNumber: 1,
+      );
 
-    const NotificationDetails platformChannelSpecifics = NotificationDetails(
-      android: androidPlatformChannelSpecifics,
-      iOS: iOSPlatformChannelSpecifics,
-    );
+      const NotificationDetails platformChannelSpecifics = NotificationDetails(
+        android: androidPlatformChannelSpecifics,
+        iOS: iOSPlatformChannelSpecifics,
+      );
 
-    await _localNotifications.show(
-      message.hashCode,
-      message.notification?.title,
-      message.notification?.body,
-      platformChannelSpecifics,
-      payload: json.encode(message.data),
-    );
+      final notificationId = message.hashCode;
+      final title = message.notification?.title ?? message.data['title'] ?? 'New Message';
+      final body = message.notification?.body ?? message.data['body'] ?? 'You have a new message';
+
+      await _localNotifications.show(
+        notificationId,
+        title,
+        body,
+        platformChannelSpecifics,
+        payload: json.encode(message.data),
+      );
+      
+      print('Local notification shown: $title - $body');
+    } catch (e) {
+      print('Error showing local notification: $e');
+    }
   }
 
   // Handle notification tap
@@ -409,6 +468,32 @@ class NotificationService {
         },
       }),
     );
+  }
+
+  // Test notification function for debugging
+  Future<void> testNotification() async {
+    try {
+      print('Testing local notification...');
+      await showLocalNotification(
+        title: 'Test Notification',
+        body: 'This is a test notification from Matcha!',
+      );
+      print('Test notification sent successfully');
+    } catch (e) {
+      print('Error sending test notification: $e');
+    }
+  }
+
+  // Get current FCM token for debugging
+  Future<String?> getCurrentFCMToken() async {
+    try {
+      final token = await _messaging.getToken();
+      print('Current FCM token: ${token?.substring(0, 20)}...');
+      return token;
+    } catch (e) {
+      print('Error getting FCM token: $e');
+      return null;
+    }
   }
 
   void dispose() {

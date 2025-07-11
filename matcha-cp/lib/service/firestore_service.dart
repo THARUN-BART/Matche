@@ -20,7 +20,7 @@ class FirestoreService {
     return _firestore.collection('users').doc(userId).get();
   }
 
-  /// Get user by ID
+  /// Get user data by ID (alias for getUserData for consistency)
   Future<DocumentSnapshot> getUserById(String userId) {
     return _firestore.collection('users').doc(userId).get();
   }
@@ -395,7 +395,11 @@ class FirestoreService {
   /// Search users by name or email
   Future<List<Map<String, dynamic>>> searchUsers(String query) async {
     try {
-      final queryLower = query.toLowerCase();
+      if (query.trim().isEmpty) {
+        return [];
+      }
+
+      final queryLower = query.toLowerCase().trim();
 
       // Search by name
       final nameQuery = await _firestore
@@ -417,20 +421,20 @@ class FirestoreService {
       final allDocs = <String, DocumentSnapshot>{};
 
       for (var doc in nameQuery.docs) {
-        if (doc.id != currentUserId) {
+        if (doc.id != currentUserId && doc.exists) {
           allDocs[doc.id] = doc;
         }
       }
 
       for (var doc in emailQuery.docs) {
-        if (doc.id != currentUserId) {
+        if (doc.id != currentUserId && doc.exists) {
           allDocs[doc.id] = doc;
         }
       }
 
       // Convert to list of maps
       return allDocs.values.map((doc) {
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data() as Map<String, dynamic>? ?? {};
         data['id'] = doc.id;
         return data;
       }).toList();
@@ -837,59 +841,57 @@ class FirestoreService {
   }
 
   Future<void> saveFcmToken(String userId, String? token) async {
-    if (token != null) {
-      await FirebaseFirestore.instance.collection('users').doc(userId).update({
-        'fcmToken': token,
-      });
+    if (token != null && token.isNotEmpty) {
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(userId).update({
+          'fcmToken': token,
+          'lastTokenUpdate': FieldValue.serverTimestamp(),
+        });
+        print('FCM token saved for user: $userId');
+      } catch (e) {
+        print('Error saving FCM token: $e');
+      }
     }
   }
 
+  /// Respond to a connection request (accept or reject)
   Future<void> respondToConnectionRequest({
     required String requestId,
     required bool accept,
   }) async {
-    final FirebaseFirestore firestore = FirebaseFirestore.instance;
-    final requestRef = firestore.collection('connectionRequests').doc(requestId);
-
     try {
-      final requestSnapshot = await requestRef.get();
-      if (!requestSnapshot.exists) {
-        throw Exception('Connection request does not exist.');
+      // Get the request document first to verify it exists and is pending
+      final requestDoc = await _firestore.collection('connectionRequests').doc(requestId).get();
+      if (!requestDoc.exists) {
+        throw Exception('Connection request not found');
       }
 
-      final data = requestSnapshot.data();
-      if (data == null) {
-        throw Exception('Connection request data is null.');
+      final requestData = requestDoc.data();
+      if (requestData == null) {
+        throw Exception('Connection request data is null');
       }
 
-      final String fromUserId = data['from'];
-      final String toUserId = data['to'];
+      final fromUserId = requestData['from'] as String?;
+      final toUserId = requestData['to'] as String?;
+
+      if (requestData['status'] != 'pending') {
+        throw Exception('Connection request is no longer pending');
+      }
 
       if (accept) {
-        // Add each user to the other's connections subcollection
-        final userConnections = firestore.collection('users');
-        final batch = firestore.batch();
-
-        batch.set(
-          userConnections.doc(fromUserId).collection('connections').doc(toUserId),
-          {'connectedAt': FieldValue.serverTimestamp()},
+        // Use the existing acceptConnectionRequest logic
+        await acceptConnectionRequest(
+          requestId: requestId,
+          fromUserId: fromUserId ?? '',
+          toUserId: toUserId ?? '',
         );
-        batch.set(
-          userConnections.doc(toUserId).collection('connections').doc(fromUserId),
-          {'connectedAt': FieldValue.serverTimestamp()},
-        );
-        // Delete the connection request
-        batch.delete(requestRef);
-
-        await batch.commit();
       } else {
-        // Just delete the request
-        await requestRef.delete();
+        // Use the existing rejectConnectionRequest logic
+        await rejectConnectionRequest(requestId);
       }
-    } on FirebaseException catch (e) {
-      throw Exception('Failed to ${accept ? "accept" : "reject"} connection request: ${e.message}');
     } catch (e) {
-      throw Exception('Failed to ${accept ? "accept" : "reject"} connection request: $e');
+      print('Error responding to connection request: $e');
+      throw Exception('Failed to respond to connection request: $e');
     }
   }
 
@@ -937,5 +939,85 @@ class FirestoreService {
         .orderBy('timestamp')
         .limit(100) // Added limit
         .snapshots();
+  }
+
+  /// Remove connection between two users
+  Future<void> removeConnection(String userA, String userB) async {
+    final batch = _firestore.batch();
+
+    // Remove connection from user A's connections
+    batch.delete(
+      _firestore
+          .collection('users')
+          .doc(userA)
+          .collection('connections')
+          .doc(userB),
+    );
+
+    // Remove connection from user B's connections
+    batch.delete(
+      _firestore
+          .collection('users')
+          .doc(userB)
+          .collection('connections')
+          .doc(userA),
+    );
+
+    await batch.commit();
+  }
+
+  /// Block a user
+  Future<void> blockUser(String currentUserId, String blockedUserId) async {
+    await _firestore
+        .collection('users')
+        .doc(currentUserId)
+        .collection('blockedUsers')
+        .doc(blockedUserId)
+        .set({
+      'blockedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Unblock a user
+  Future<void> unblockUser(String currentUserId, String blockedUserId) async {
+    await _firestore
+        .collection('users')
+        .doc(currentUserId)
+        .collection('blockedUsers')
+        .doc(blockedUserId)
+        .delete();
+  }
+
+  /// Get blocked users for current user
+  Stream<QuerySnapshot> getBlockedUsers() {
+    return _firestore
+        .collection('users')
+        .doc(currentUserId)
+        .collection('blockedUsers')
+        .snapshots();
+  }
+
+  /// Check if a user is blocked
+  Future<bool> isUserBlocked(String userId) async {
+    final blockedDoc = await _firestore
+        .collection('users')
+        .doc(currentUserId)
+        .collection('blockedUsers')
+        .doc(userId)
+        .get();
+    return blockedDoc.exists;
+  }
+
+  /// Get all users except current user and blocked users
+  Stream<List<DocumentSnapshot>> getAllUsersExceptCurrentAndBlocked() async* {
+    final blockedUsersQuery = await getBlockedUsers().first;
+    final blockedUserIds = blockedUsersQuery.docs.map((doc) => doc.id).toSet();
+
+    yield* _firestore
+        .collection('users')
+        .where('uid', isNotEqualTo: currentUserId)
+        .snapshots()
+        .map((snapshot) =>
+            snapshot.docs.where((doc) => !blockedUserIds.contains(doc.id)).toList());
   }
 }

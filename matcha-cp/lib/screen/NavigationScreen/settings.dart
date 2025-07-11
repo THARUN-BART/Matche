@@ -23,8 +23,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
-  bool _notificationsEnabled = true;
-  bool _profileVisible = true;
 
   @override
   void initState() {
@@ -42,8 +40,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() {
           _userData = snap.data();
           _isLoading = false;
-          _notificationsEnabled = _userData?['notificationsEnabled'] ?? true;
-          _profileVisible = _userData?['profileVisible'] ?? true;
         });
       }
     } catch (e) {
@@ -96,9 +92,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        title: const Text('Settings',style: TextStyle(fontSize: 30),),
+        centerTitle: true,
+
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -128,25 +124,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Icons.person,
         () => _showAboutMyselfDialog(),
       ),
-      _buildSettingsItem(
-        "Skills & Interests", 
-        Icons.star, 
-        () => _showSkillsInterestsDialog(),
-      ),
     ]);
   }
 
   Widget _buildPrivacySection() {
     return _buildSettingsSection("Privacy", [
-      _buildSwitchTile(
-        "Profile Visibility",
-        Icons.visibility,
-        _profileVisible,
-        (value) {
-          setState(() => _profileVisible = value);
-          _updateSetting('profileVisible', value);
-        },
-      ),
       _buildSettingsItem(
         "Blocked Users", 
         Icons.block, 
@@ -162,15 +144,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildNotificationSection() {
     return _buildSettingsSection("Notifications", [
-      _buildSwitchTile(
-        "Push Notifications",
-        Icons.notifications,
-        _notificationsEnabled,
-        (value) {
-          setState(() => _notificationsEnabled = value);
-          _updateSetting('notificationsEnabled', value);
-        },
-      ),
       _buildSettingsItem(
         "Notification Settings", 
         Icons.settings, 
@@ -199,11 +172,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Icons.group, 
         () => _showMyGroupsDialog(),
       ),
-      _buildSettingsItem(
-        "Group Settings", 
-        Icons.settings, 
-        () => _showGroupSettingsDialog(),
-      ),
     ]);
   }
 
@@ -222,8 +190,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _buildSettingsItem(
         "Logout", 
         Icons.logout, 
-        () => _logout(),
+        () => _showLogoutConfirmationDialog(),
         isDestructive: true,
+      ),
+      _buildSettingsItem(
+        "App Info",
+        Icons.info_outline,
+        () => _showAppInfoDialog(),
       ),
     ]);
   }
@@ -305,22 +278,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showSkillsInterestsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Skills & Interests'),
-        content: const Text('Skills and interests functionality coming soon!'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showBlockedUsersDialog() {
     showDialog(
       context: context,
@@ -374,25 +331,93 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Test Notifications'),
-        content: const Text('Send a test notification?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Test your notification settings:'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _testLocalNotification();
+              },
+              child: const Text('Test Local Notification'),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _checkFCMToken();
+              },
+              child: const Text('Check FCM Token'),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _testBackgroundNotification();
+              },
+              child: const Text('Test Background Notification'),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              NotificationService().showLocalNotification(
-                title: 'Test Notification',
-                body: 'This is a test notification from Matcha!',
-              );
-            },
-            child: const Text('Send Test'),
+            child: const Text('Close'),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _testLocalNotification() async {
+    try {
+      await NotificationService().testNotification();
+      _showSnackBar('Local notification test sent!', Colors.green);
+    } catch (e) {
+      _showSnackBar('Error sending test notification: $e', Colors.red);
+    }
+  }
+
+  Future<void> _checkFCMToken() async {
+    try {
+      final token = await NotificationService().getCurrentFCMToken();
+      if (token != null) {
+        _showSnackBar('FCM Token: ${token.substring(0, 20)}...', Colors.green);
+        print('Full FCM Token: $token');
+      } else {
+        _showSnackBar('No FCM token available', Colors.orange);
+      }
+    } catch (e) {
+      _showSnackBar('Error getting FCM token: $e', Colors.red);
+    }
+  }
+
+  Future<void> _testBackgroundNotification() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        _showSnackBar('User not logged in', Colors.red);
+        return;
+      }
+
+      // Create a test notification in Firestore to trigger the Cloud Function
+      await _firestore.collection('notifications').add({
+        'to': user.uid,
+        'from': 'system',
+        'title': 'Test Background Notification',
+        'body': 'This is a test background notification!',
+        'type': 'test',
+        'timestamp': FieldValue.serverTimestamp(),
+        'read': false,
+      });
+
+      _showSnackBar('Background notification test sent!', Colors.green);
+    } catch (e) {
+      _showSnackBar('Error sending background notification: $e', Colors.red);
+    }
   }
 
   void _showMyGroupsDialog() {
@@ -411,32 +436,83 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showGroupSettingsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Group Settings'),
-        content: const Text('Group settings functionality coming soon!'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showChangePasswordDialog() {
+    final _currentPasswordController = TextEditingController();
+    final _newPasswordController = TextEditingController();
+    final _confirmPasswordController = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Change Password'),
-        content: const Text('Password change functionality coming soon!'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _currentPasswordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Current Password',
+                  prefixIcon: Icon(Icons.lock_outline),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _newPasswordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'New Password',
+                  prefixIcon: Icon(Icons.lock),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _confirmPasswordController,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Confirm New Password',
+                  prefixIcon: Icon(Icons.lock),
+                ),
+              ),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final currentPassword = _currentPasswordController.text.trim();
+              final newPassword = _newPasswordController.text.trim();
+              final confirmPassword = _confirmPasswordController.text.trim();
+              if (newPassword != confirmPassword) {
+                _showSnackBar('New passwords do not match', Colors.red);
+                return;
+              }
+              if (newPassword.length < 6) {
+                _showSnackBar('Password must be at least 6 characters', Colors.red);
+                return;
+              }
+              try {
+                final user = _auth.currentUser;
+                if (user == null || user.email == null) {
+                  _showSnackBar('User not found', Colors.red);
+                  return;
+                }
+                // Re-authenticate
+                final cred = EmailAuthProvider.credential(email: user.email!, password: currentPassword);
+                await user.reauthenticateWithCredential(cred);
+                // Update password
+                await user.updatePassword(newPassword);
+                Navigator.pop(context);
+                _showSnackBar('Password changed successfully!', Colors.green);
+              } catch (e) {
+                _showSnackBar('Failed to change password: $e', Colors.red);
+              }
+            },
+            child: const Text('Change'),
           ),
         ],
       ),
@@ -480,6 +556,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } catch (e) {
       _showSnackBar('Error logging out: $e', Colors.red);
     }
+  }
+
+  void _showAppInfoDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('App Info'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Text('App Name: Matche'),
+            SizedBox(height: 8),
+            Text('Version: 1.0.0'),
+            SizedBox(height: 8),
+            Text('Matche is a peer-connection and chat app with profile matching, group features, and notifications.'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLogoutConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _logout();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Logout', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 }
 

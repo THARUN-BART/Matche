@@ -7,8 +7,9 @@ import '../service/group_service.dart';
 import 'realtime_chat_screen.dart';
 import 'group_chat_screen.dart';
 import 'join_group_screen.dart';
+import 'group_invitations_screen.dart';
 import '../widget/group_card.dart';
-import '../widget/online_avatar.dart'; // Added import for OnlineAvatar
+import '../widget/online_avatar.dart';
 
 class ChatListScreen extends StatefulWidget {
   const ChatListScreen({super.key});
@@ -20,6 +21,7 @@ class ChatListScreen extends StatefulWidget {
 class _ChatListScreenState extends State<ChatListScreen> {
   late RealtimeChatService _chatService;
   late FirestoreService _firestoreService;
+  late GroupService _groupService;
   int _selectedIndex = 0;
 
   @override
@@ -27,417 +29,319 @@ class _ChatListScreenState extends State<ChatListScreen> {
     super.initState();
     _chatService = Provider.of<RealtimeChatService>(context, listen: false);
     _firestoreService = Provider.of<FirestoreService>(context, listen: false);
+    _groupService = Provider.of<GroupService>(context, listen: false);
   }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Chats'),
-          backgroundColor: Colors.green,
-          foregroundColor: Colors.white,
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Individual'),
-              Tab(text: 'Groups'),
-            ],
-            indicatorColor: Colors.white,
-            labelColor: Colors.white,
-            unselectedLabelColor: Colors.white70,
+    return Scaffold(
+      appBar: AppBar(
+        elevation: 0,
+        title: const Text(
+          'Group Chats',
+
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
           ),
         ),
-        body: TabBarView(
-          children: [
-            _buildIndividualChats(),
-            _buildGroupChats(),
-          ],
-        ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: _showNewChatOptions,
-          backgroundColor: Colors.green,
-          child: const Icon(Icons.chat, color: Colors.white),
-        ),
+        centerTitle: true,
+      ),
+      body: _buildGroupChats(),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showNewChatOptions,
+        backgroundColor: Colors.green,
+        elevation: 8,
+        child: const Icon(Icons.chat, color: Colors.white, size: 28),
       ),
     );
   }
 
-  Widget _buildIndividualChats() {
-    return StreamBuilder<List<ChatRoom>>(
-      stream: _chatService.getChatRooms(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          print('Error loading individual chats: ${snapshot.error}');
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                const SizedBox(height: 16),
-                const Text('Error loading chats'),
-                const SizedBox(height: 8),
-                Text('${snapshot.error}'),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () => setState(() {}),
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          );
-        }
-
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        final chatRooms = snapshot.data ?? [];
-        final individualChats = chatRooms.where((chat) => chat.type == 'individual').toList();
-
-        print('Found ${individualChats.length} individual chats');
-
-        if (individualChats.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey),
-                SizedBox(height: 16),
-                Text(
-                  'No individual chats yet',
-                  style: TextStyle(fontSize: 18, color: Colors.grey),
-                ),
-                Text(
-                  'Start a conversation with someone!',
-                  style: TextStyle(fontSize: 14, color: Colors.grey),
-                ),
-              ],
-            ),
-          );
-        }
-
-        return ListView.builder(
-          itemCount: individualChats.length,
-          itemBuilder: (context, index) {
-            final chatRoom = individualChats[index];
-            return _buildIndividualChatTile(chatRoom);
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildIndividualChatTile(ChatRoom chatRoom) {
-    // Get the other user's ID (not current user)
-    final otherUserId = chatRoom.participants
-        .firstWhere((id) => id != _firestoreService.currentUserId);
-
-    return FutureBuilder<DocumentSnapshot>(
-      future: _firestoreService.getUserData(otherUserId),
-      builder: (context, snapshot) {
-        final userData = snapshot.data?.data() as Map<String, dynamic>?;
-        final userName = userData?['name'] ?? 'Unknown User';
-        final userAvatar = userData?['avatarUrl'];
-
-        final unreadCount = chatRoom.unreadCount[_firestoreService.currentUserId] ?? 0;
-
-        return StreamBuilder<bool>(
-          stream: _chatService.getUserOnlineStatus(otherUserId),
-          builder: (context, onlineSnapshot) {
-            final isOnline = onlineSnapshot.data ?? false;
-
-            return ListTile(
-              leading: OnlineAvatar(
-                imageUrl: userAvatar,
-                name: userName,
-                radius: 25,
-                isOnline: isOnline,
-              ),
-              title: Text(
-                userName,
-                style: TextStyle(
-                  fontWeight: unreadCount > 0 ? FontWeight.bold : FontWeight.normal,
-                ),
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    chatRoom.lastMessage,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: unreadCount > 0 ? Colors.black : Colors.grey[600],
-                      fontWeight: unreadCount > 0 ? FontWeight.w500 : FontWeight.normal,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Text(
-                        _formatLastMessageTime(chatRoom.lastMessageTime),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: unreadCount > 0 ? Colors.green : Colors.grey[500],
-                        ),
-                      ),
-                      if (unreadCount > 0) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.green,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            unreadCount.toString(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
-              ),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => RealtimeChatScreen(
-                      otherUserId: otherUserId,
-                      otherUserName: userName,
-                      chatId: chatRoom.chatId,
-                    ),
-                  ),
-                );
-              },
-              onLongPress: () => _showChatOptions(chatRoom, userName),
-            );
-          },
-        );
-      },
-    );
-  }
-
   Widget _buildGroupChats() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: _firestoreService.getUserGroups(),
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _groupService.getUserGroups(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return const Center(child: Text('Error loading groups'));
+          return _buildErrorWidget('Error loading groups', snapshot.error.toString());
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return _buildLoadingWidget();
         }
 
-        final groups = snapshot.data?.docs ?? [];
+        final groups = snapshot.data ?? [];
 
         if (groups.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.group_outlined, size: 64, color: Colors.grey),
-                SizedBox(height: 16),
-                Text(
-                  'No group chats yet',
-                  style: TextStyle(fontSize: 18, color: Colors.grey),
-                ),
-                Text(
-                  'Join or create a group to start chatting!',
-                  style: TextStyle(fontSize: 14, color: Colors.grey),
-                ),
-              ],
-            ),
+          return _buildEmptyState(
+            icon: Icons.group_outlined,
+            title: 'No group chats yet',
+            subtitle: 'Join or create a group to start chatting!',
+            actionText: 'Create Group',
+            onAction: _showCreateGroup,
           );
         }
 
         return ListView.builder(
+          padding: const EdgeInsets.symmetric(vertical: 8),
           itemCount: groups.length,
           itemBuilder: (context, index) {
-            final groupData = groups[index].data() as Map<String, dynamic>;
-            final groupMap = {
-              'id': groups[index].id,
-              'name': groupData['name'] ?? 'Unknown Group',
-              'description': groupData['description'] ?? '',
-              'memberCount': groupData['memberCount'] ?? 0,
-              'maxMembers': groupData['maxMembers'] ?? 10,
-              'category': groupData['category'] ?? 'General',
-              'skills': groupData['skills'] ?? [],
-              'userRole': groupData['adminId'] == _firestoreService.currentUserId ? 'admin' : 'member',
-            };
-            
-            return GroupCard(
-              group: groupMap,
-              onTap: () {
-                // Navigate to group chat
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => GroupChatScreen(
-                      groupId: groups[index].id,
-                      groupName: groupData['name'] ?? 'Unknown Group',
+            final group = groups[index];
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: GroupCard(
+                group: group,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => GroupChatScreen(
+                        groupId: group['id'],
+                        groupName: group['name'] ?? 'Unknown Group',
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             );
           },
         );
       },
+    );
+  }
+
+  Widget _buildLoadingWidget() {
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+          ),
+          SizedBox(height: 16),
+          Text(
+            'Loading chats...',
+            style: TextStyle(
+              fontSize: 16,
+              color: Colors.grey,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorWidget(String title, String error) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.red[50],
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(
+              Icons.error_outline,
+              size: 48,
+              color: Colors.red,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.red,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              error,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () => setState(() {}),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String actionText,
+    required VoidCallback onAction,
+  }) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(32),
+            ),
+            child: Icon(
+              icon,
+              size: 64,
+              color: Colors.grey[400],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32),
+            child: Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 16,
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: onAction,
+            icon: const Icon(Icons.add),
+            label: Text(actionText),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   void _showNewChatOptions() {
     showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: const Icon(Icons.person_add),
-              title: const Text('New Individual Chat'),
-              onTap: () {
-                Navigator.pop(context);
-                _showUserList();
-              },
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.email),
-              title: const Text('Start Chat by Email'),
-              onTap: () {
-                Navigator.pop(context);
-                _showStartChatByEmailDialog();
-              },
+            const SizedBox(height: 16),
+            const Text(
+              'Group Options',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.group_add),
-              title: const Text('Create New Group'),
+            const SizedBox(height: 16),
+            _buildOptionTile(
+              icon: Icons.group_add,
+              title: 'Create New Group',
+              subtitle: 'Create a new group chat',
               onTap: () {
                 Navigator.pop(context);
                 _showCreateGroup();
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.group),
-              title: const Text('Join Group'),
+            _buildOptionTile(
+              icon: Icons.mail,
+              title: 'Group Invitations',
+              subtitle: 'View pending group invitations',
               onTap: () {
                 Navigator.pop(context);
-                _showJoinGroup();
+                _showGroupInvitations();
               },
             ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
     );
   }
 
-  void _showStartChatByEmailDialog() {
-    final _emailController = TextEditingController();
-    bool _isLoading = false;
-    String? _errorMessage;
-    showDialog(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
-              title: const Text('Start Chat by Email'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: _emailController,
-                    decoration: InputDecoration(
-                      labelText: 'User Email',
-                      errorText: _errorMessage,
-                    ),
-                    keyboardType: TextInputType.emailAddress,
-                  ),
-                  if (_isLoading)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 16),
-                      child: CircularProgressIndicator(),
-                    ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: _isLoading
-                      ? null
-                      : () async {
-                          setState(() {
-                            _isLoading = true;
-                            _errorMessage = null;
-                          });
-                          try {
-                            final userSnap = await _firestoreService.getUserByEmail(_emailController.text.trim());
-                            if (userSnap == null || !userSnap.exists) {
-                              setState(() {
-                                _errorMessage = 'No user found with that email.';
-                                _isLoading = false;
-                              });
-                              return;
-                            }
-                            final userData = userSnap.data() as Map<String, dynamic>?;
-                            if (userData == null) {
-                              setState(() {
-                                _errorMessage = 'No user found with that email.';
-                                _isLoading = false;
-                              });
-                              return;
-                            }
-                            final otherUserId = userSnap.id;
-                            final otherUserName = userData['name'] ?? 'Unknown User';
-                            Navigator.pop(context); // Close dialog
-                            // Start chat
-                            final chatId = await _chatService.createOrGetChatRoom(otherUserId);
-                            if (mounted) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => RealtimeChatScreen(
-                                    otherUserId: otherUserId,
-                                    otherUserName: otherUserName,
-                                    chatId: chatId,
-                                  ),
-                                ),
-                              );
-                            }
-                          } catch (e) {
-                            setState(() {
-                              _errorMessage = 'Error: $e';
-                              _isLoading = false;
-                            });
-                          }
-                        },
-                  child: const Text('Start Chat'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+  Widget _buildOptionTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.green[50],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, color: Colors.green, size: 24),
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontWeight: FontWeight.w600,
+          fontSize: 16,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(
+          color: Colors.grey[600],
+          fontSize: 14,
+        ),
+      ),
+      onTap: onTap,
     );
   }
 
-  void _showUserList() {
+  void _showGroupInvitations() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const UserListScreen(),
+        builder: (context) => const GroupInvitationsScreen(),
       ),
     );
   }
@@ -451,47 +355,63 @@ class _ChatListScreenState extends State<ChatListScreen> {
     );
   }
 
-  void _showJoinGroup() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const JoinGroupScreen(),
-      ),
-    );
-  }
-
   void _showChatOptions(ChatRoom chatRoom, String userName) {
     showModalBottomSheet(
       context: context,
+      backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        padding: const EdgeInsets.all(16),
+        decoration: const BoxDecoration(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: const Icon(Icons.person),
-              title: Text('View ${userName}\'s Profile'),
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Chat Options',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildOptionTile(
+              icon: Icons.person,
+              title: 'View ${userName}\'s Profile',
+              subtitle: 'See their profile information',
               onTap: () {
                 Navigator.pop(context);
                 // Navigate to profile
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.delete),
-              title: const Text('Clear Chat'),
+            _buildOptionTile(
+              icon: Icons.delete_outline,
+              title: 'Clear Chat',
+              subtitle: 'Delete all messages',
               onTap: () {
                 Navigator.pop(context);
                 _showClearChatConfirmation(chatRoom.chatId);
               },
             ),
-            ListTile(
-              leading: const Icon(Icons.block),
-              title: const Text('Block User'),
+            _buildOptionTile(
+              icon: Icons.block,
+              title: 'Block User',
+              subtitle: 'Block this user',
               onTap: () {
                 Navigator.pop(context);
                 _showBlockConfirmation(userName);
               },
             ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
@@ -502,8 +422,17 @@ class _ChatListScreenState extends State<ChatListScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Clear Chat'),
-        content: const Text('Are you sure you want to clear all messages? This action cannot be undone.'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Clear Chat',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Are you sure you want to clear all messages? This action cannot be undone.',
+          style: TextStyle(fontSize: 16),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -519,6 +448,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     const SnackBar(
                       content: Text('Chat cleared successfully'),
                       backgroundColor: Colors.green,
+                      behavior: SnackBarBehavior.floating,
                     ),
                   );
                 }
@@ -528,13 +458,20 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     SnackBar(
                       content: Text('Failed to clear chat: $e'),
                       backgroundColor: Colors.red,
+                      behavior: SnackBarBehavior.floating,
                     ),
                   );
                 }
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Clear', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Clear'),
           ),
         ],
       ),
@@ -545,8 +482,17 @@ class _ChatListScreenState extends State<ChatListScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Block User'),
-        content: Text('Are you sure you want to block $userName? You won\'t be able to send or receive messages from them.'),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: const Text(
+          'Block User',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Are you sure you want to block $userName? You won\'t be able to send or receive messages from them.',
+          style: const TextStyle(fontSize: 16),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -562,6 +508,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     SnackBar(
                       content: Text('$userName has been blocked'),
                       backgroundColor: Colors.orange,
+                      behavior: SnackBarBehavior.floating,
                     ),
                   );
                 }
@@ -571,13 +518,20 @@ class _ChatListScreenState extends State<ChatListScreen> {
                     SnackBar(
                       content: Text('Failed to block user: $e'),
                       backgroundColor: Colors.red,
+                      behavior: SnackBarBehavior.floating,
                     ),
                   );
                 }
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Block', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Block'),
           ),
         ],
       ),
@@ -598,6 +552,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
     }
   }
 }
+
+
 
 // Placeholder screens - you can implement these later
 class UserListScreen extends StatefulWidget {
@@ -624,8 +580,6 @@ class _UserListScreenState extends State<UserListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Select User'),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
@@ -1196,7 +1150,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
               boxShadow: [
                 BoxShadow(
                   color: Colors.grey.withOpacity(0.3),

@@ -165,7 +165,7 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
                   isConnected: true,
                   hasSentRequest: false,
                   onTap: () => _openProfile(context, user, connectionId),
-                  onMessage: () => _openChat(context, connectionId),
+                  onMessage: () => _openChat(context, connectionId, user['name']),
                 );
               },
             );
@@ -387,14 +387,18 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
   }
 
   /// Opens chat screen
-  void _openChat(BuildContext context, String userId) {
+  void _openChat(BuildContext context, String userId, [String? userName]) {
     final currentUserId = Provider.of<FirestoreService>(context, listen: false).currentUserId;
     final chatId = _generateChatId(currentUserId, userId);
 
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ChatScreen(chatId: chatId),
+        builder: (context) => ChatScreen(
+          chatId: chatId,
+          otherUserId: userId,
+          otherUserName: userName,
+        ),
       ),
     );
   }

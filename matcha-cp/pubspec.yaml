@@ -45,6 +45,8 @@ dependencies:
   firebase_database: ^11.1.6
   shimmer: ^3.0.0
   http: ^1.1.0
+  emoji_picker_flutter: ^4.3.0
+  url_launcher: ^6.2.5
 
 
 dev_dependencies:
@@ -71,8 +73,8 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-     - Assets/Matche_Ic.png
      - Assets/IC.png
+     - Assets/Main_IC.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

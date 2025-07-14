@@ -25,6 +25,10 @@ class _MatchesScreenState extends State<MatchesScreen>
   Set<String> _rejectedRequestUserIds = {};
   List<StreamSubscription> _subscriptions = [];
 
+  // Add search controller and query state
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
@@ -102,6 +106,7 @@ class _MatchesScreenState extends State<MatchesScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose(); // dispose search controller
     // Cancel all subscriptions
     for (final subscription in _subscriptions) {
       subscription.cancel();
@@ -214,112 +219,144 @@ class _MatchesScreenState extends State<MatchesScreen>
   Widget _buildSuggestionsTab() {
     final firestoreService = Provider.of<FirestoreService>(context);
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: firestoreService.getSuggestedConnections(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
-        }
-
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SkeletonList(itemCount: 5);
-        }
-
-        final suggestions = snapshot.data?.docs ?? [];
-
-        if (suggestions.isEmpty) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.person_search, size: 64, color: Colors.grey),
-                SizedBox(height: 16),
-                Text(
-                  'No suggestions available',
-                  style: TextStyle(fontSize: 18, color: Colors.grey),
-                ),
-              ],
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search by username',
+              prefixIcon: Icon(Icons.search),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(25)),
+              contentPadding: EdgeInsets.symmetric(vertical: 0, horizontal: 16),
             ),
-          );
-        }
+            onChanged: (value) {
+              setState(() {
+                _searchQuery = value.trim().toLowerCase();
+              });
+            },
+          ),
+        ),
+        Expanded(
+          child: StreamBuilder<QuerySnapshot>(
+            stream: firestoreService.getSuggestedConnections(),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('Error:  {snapshot.error}'));
+              }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: suggestions.length,
-          itemBuilder: (context, index) {
-            final suggestionId = suggestions[index].id;
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SkeletonList(itemCount: 5);
+              }
 
-            // Skip if user is already connected or is the current user
-            if (_connectedUserIds.contains(suggestionId) ||
-                suggestionId == firestoreService.currentUserId) {
-              return const SizedBox.shrink();
-            }
+              final suggestions = snapshot.data?.docs ?? [];
 
-            return FutureBuilder<DocumentSnapshot>(
-              future: firestoreService.getUserById(suggestionId),
-              builder: (context, userSnapshot) {
-                if (userSnapshot.connectionState == ConnectionState.waiting) {
-                  return const ListTile(
-                    leading: CircleAvatar(),
-                    title: Text('Loading...'),
-                  );
-                }
+              // Filter suggestions by username
+              final filtered = suggestions.where((doc) {
+                final data = doc.data() as Map<String, dynamic>?;
+                if (data == null) return false;
+                final username = (data['username'] ?? data['name'] ?? '').toString().toLowerCase();
+                if (_searchQuery.isEmpty) return true;
+                return username.contains(_searchQuery);
+              }).toList();
 
-                if (!userSnapshot.hasData || userSnapshot.data?.data() == null) {
-                  return const ListTile(
-                    title: Text('User not found'),
-                  );
-                }
-
-                final user = userSnapshot.data!.data() as Map<String, dynamic>;
-                final hasSentRequest = _sentRequestUserIds.contains(suggestionId);
-                final hasRejectedRequest = _rejectedRequestUserIds.contains(suggestionId);
-
-                return ConnectionCard(
-                  user: user,
-                  isConnected: false,
-                  hasSentRequest: hasSentRequest,
-                  onTap: () => _showUserPreview(context, user, suggestionId),
-                  onAvatarTap: () {
-                    final name = user['name'] ?? 'Unknown';
-                    final skills = (user['skills'] is List && user['skills'].isNotEmpty)
-                        ? (user['skills'] as List).join(', ')
-                        : 'Not specified';
-                    final gender = user['gender'] ?? 'Not specified';
-                    showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: Text(name),
-                        content: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Skills: $skills'),
-                            SizedBox(height: 8),
-                            Text('Gender: $gender'),
-                          ],
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: Text('Close'),
-                          ),
-                        ],
+              if (filtered.isEmpty) {
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.person_search, size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text(
+                        'No suggestions available',
+                        style: TextStyle(fontSize: 18, color: Colors.grey),
                       ),
-                    );
-                  },
-                  onConnect: (hasSentRequest || hasRejectedRequest)
-                      ? null
-                      : () => _sendConnectionRequest(context, suggestionId),
-                  onResend: hasRejectedRequest
-                      ? () => _resendConnectionRequest(context, suggestionId)
-                      : null,
+                    ],
+                  ),
                 );
-              },
-            );
-          },
-        );
-      },
+              }
+
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: filtered.length,
+                itemBuilder: (context, index) {
+                  final suggestionId = filtered[index].id;
+
+                  // Skip if user is already connected or is the current user
+                  if (_connectedUserIds.contains(suggestionId) ||
+                      suggestionId == firestoreService.currentUserId) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return FutureBuilder<DocumentSnapshot>(
+                    future: firestoreService.getUserById(suggestionId),
+                    builder: (context, userSnapshot) {
+                      if (userSnapshot.connectionState == ConnectionState.waiting) {
+                        return const ListTile(
+                          leading: CircleAvatar(),
+                          title: Text('Loading...'),
+                        );
+                      }
+
+                      if (!userSnapshot.hasData || userSnapshot.data?.data() == null) {
+                        return const ListTile(
+                          title: Text('User not found'),
+                        );
+                      }
+
+                      final user = userSnapshot.data!.data() as Map<String, dynamic>;
+                      final hasSentRequest = _sentRequestUserIds.contains(suggestionId);
+                      final hasRejectedRequest = _rejectedRequestUserIds.contains(suggestionId);
+
+                      return ConnectionCard(
+                        user: user,
+                        isConnected: false,
+                        hasSentRequest: hasSentRequest,
+                        onTap: () => _showUserPreview(context, user, suggestionId),
+                        onAvatarTap: () {
+                          final name = user['name'] ?? 'Unknown';
+                          final skills = (user['skills'] is List && user['skills'].isNotEmpty)
+                              ? (user['skills'] as List).join(', ')
+                              : 'Not specified';
+                          final gender = user['gender'] ?? 'Not specified';
+                          showDialog(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: Text(name),
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Skills: $skills'),
+                                  SizedBox(height: 8),
+                                  Text('Gender: $gender'),
+                                ],
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(context).pop(),
+                                  child: Text('Close'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        onConnect: (hasSentRequest || hasRejectedRequest)
+                            ? null
+                            : () => _sendConnectionRequest(context, suggestionId),
+                        onResend: hasRejectedRequest
+                            ? () => _resendConnectionRequest(context, suggestionId)
+                            : null,
+                      );
+                    },
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 

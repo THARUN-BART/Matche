@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:matcha/Authentication/sign_up.dart';
+import 'package:matcha/Authentication/username_selection.dart';
 import 'package:matcha/screen/main_navigation.dart';
 import 'package:matcha/service/notification_service.dart';
 
@@ -62,13 +63,32 @@ class _LoginState extends State<Login> {
 
       if (userCredential.user != null) {
         await NotificationService().storeTokenAfterLogin(userCredential.user!.uid);
+        final userDoc = await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).get();
+        final data = userDoc.data();
+        bool needsUsername = data == null || data['username'] == null || (data['username'] as String).trim().isEmpty;
+        if (needsUsername) {
+          // Wait for username to be set
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => UsernameSelectionScreen()),
+          );
+          // Re-fetch user data to confirm username is now set
+          final updatedDoc = await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).get();
+          final updatedData = updatedDoc.data();
+          if (updatedData == null || updatedData['username'] == null || (updatedData['username'] as String).trim().isEmpty) {
+            // Still no username, show error and return
+            _showMessage("Username Required", "You must set a username to continue.");
+            setState(() => _isLoading = false);
+            return;
+          }
+        }
+        // Only now proceed to main app
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => MainNavigation()),
+          (route) => false,
+        );
       }
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => MainNavigation()),
-            (route) => false,
-      );
     } on FirebaseAuthException catch (e) {
       String message = "Login failed. Please try again.";
 

@@ -1029,4 +1029,14 @@ class FirestoreService {
         .map((snapshot) =>
             snapshot.docs.where((doc) => !blockedUserIds.contains(doc.id)).toList());
   }
+
+  /// Check if a username is already taken
+  Future<bool> isUsernameTaken(String username) async {
+    final snap = await _firestore
+        .collection('users')
+        .where('username', isEqualTo: username)
+        .limit(1)
+        .get();
+    return snap.docs.isNotEmpty;
+  }
 }

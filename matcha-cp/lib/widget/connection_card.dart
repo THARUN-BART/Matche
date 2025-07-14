@@ -63,7 +63,7 @@ class _ConnectionCardState extends State<ConnectionCard> {
         : null;
     final String subtitle = (widget.user['bio'] is String && widget.user['bio'].toString().isNotEmpty)
         ? widget.user['bio']
-        : (widget.user['email'] is String ? widget.user['email'] : '');
+        : (widget.user['username'] is String ? widget.user['username'] : '');
 
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),

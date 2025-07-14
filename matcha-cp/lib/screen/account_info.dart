@@ -737,7 +737,7 @@ class _AccountInfoState extends State<AccountInfo> {
             const Divider(height: 32),
 
             if (!_isEditMode) ...[
-              // View Mode
+              buildDetail(icon: Icons.verified_user, title: "UserName", value: _userData?["username"]),
               buildDetail(icon: Icons.email, title: "Email", value: user.email),
               buildDetail(icon: Icons.phone, title: "Phone", value: _userData?["phone"]),
               buildDetail(icon: Icons.wc, title: "Gender", value: _userData?["gender"]),

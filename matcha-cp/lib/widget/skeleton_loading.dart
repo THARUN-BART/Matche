@@ -242,29 +242,6 @@ class SkeletonMatchCard extends StatelessWidget {
   }
 }
 
-class SkeletonMatchList extends StatelessWidget {
-  final int itemCount;
-
-  const SkeletonMatchList({
-    super.key,
-    this.itemCount = 3,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 220,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: itemCount,
-        itemBuilder: (context, index) {
-          return const SkeletonMatchCard();
-        },
-      ),
-    );
-  }
-}
 
 class SkeletonMatchListVertical extends StatelessWidget {
   final int itemCount;
@@ -287,4 +264,4 @@ class SkeletonMatchListVertical extends StatelessWidget {
       },
     );
   }
-} 
+}

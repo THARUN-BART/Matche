@@ -11,6 +11,9 @@ class ProfileViewScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text("Profile Info"),
+        leading: IconButton(onPressed: (){
+          Navigator.pop(context);
+        }, icon: Icon(Icons.arrow_back_ios)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),

@@ -1,33 +1,37 @@
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:matcha/service/notification_service.dart';
-import 'package:matcha/screen/main_navigation.dart';
-import '../constants/Constant.dart';
-import 'availability_selection.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-class InterestsSelectionScreen extends StatefulWidget {
+import '../constants/Constant.dart';
+import '../screen/main_navigation.dart';
+import '../service/notification_service.dart';
+import 'interests_selection.dart';
+
+class SkillsSelectionScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
-  const InterestsSelectionScreen({super.key, required this.userData});
+
+  const SkillsSelectionScreen({super.key, required this.userData});
 
   @override
-  State<InterestsSelectionScreen> createState() => _InterestsSelectionScreenState();
+  State<SkillsSelectionScreen> createState() => _SkillsSelectionScreenState();
 }
 
-class _InterestsSelectionScreenState extends State<InterestsSelectionScreen> {
+class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
   final TextEditingController _searchController = TextEditingController();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  List<String> selectedInterests = [];
-  List<String> filteredInterests = [];
+  List<String> selectedSkills = [];
+  List<String> filteredSkills = [];
   bool _isLoading = false;
+
+
 
   @override
   void initState() {
     super.initState();
-    filteredInterests = allInterestOptions;
-    _searchController.addListener(_filterInterests);
+    filteredSkills = allSkills;
+    _searchController.addListener(_filterSkills);
   }
 
   @override
@@ -36,61 +40,78 @@ class _InterestsSelectionScreenState extends State<InterestsSelectionScreen> {
     super.dispose();
   }
 
-  void _filterInterests() {
+  void _filterSkills() {
     final query = _searchController.text.toLowerCase();
     setState(() {
-      filteredInterests = allInterestOptions
-          .where((interest) => interest.toLowerCase().contains(query))
+      filteredSkills = allSkills
+          .where((skill) => skill.toLowerCase().contains(query))
           .toList();
     });
   }
 
-  void _toggleInterest(String interest) {
+  void _toggleSkill(String skill) {
     setState(() {
-      if (selectedInterests.contains(interest)) {
-        selectedInterests.remove(interest);
+      if (selectedSkills.contains(skill)) {
+        selectedSkills.remove(skill);
       } else {
-        selectedInterests.add(interest);
+        selectedSkills.add(skill);
       }
     });
   }
 
   Future<void> _saveAndContinue() async {
     setState(() => _isLoading = true);
+
     try {
+      // Add skills to user data
       final userData = Map<String, dynamic>.from(widget.userData);
-      userData['interests'] = selectedInterests;
+      userData['skills'] = selectedSkills;
+
+      // Get and store FCM token
       await NotificationService().storeTokenAfterLogin(userData['uid']);
-      await _firestore.collection("users").doc(userData['uid']).set(userData, SetOptions(merge: true));
+
+      // Save to Firestore
+      await _firestore.collection("users").doc(userData['uid']).set(userData);
+
+      // Navigate to home page
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => AvailabilitySelectionScreen(userData: userData)),
+        MaterialPageRoute(
+          builder: (_) => InterestsSelectionScreen(userData: userData),
+        ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error saving data: "+e.toString()), backgroundColor: Colors.red),
+        SnackBar(content: Text("Error saving data: ${e.toString()}"), backgroundColor: Colors.red),
       );
     }
+
     setState(() => _isLoading = false);
   }
 
   Future<void> _skipToHome() async {
     setState(() => _isLoading = true);
+
     try {
       final userData = Map<String, dynamic>.from(widget.userData);
-      userData['interests'] = <String>[];
+      userData['skills'] = <String>[];
+
+      // Get and store FCM token
       await NotificationService().storeTokenAfterLogin(userData['uid']);
-      await _firestore.collection("users").doc(userData['uid']).set(userData, SetOptions(merge: true));
+
+      await _firestore.collection("users").doc(userData['uid']).set(userData);
+
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (_) => const MainNavigation()),
-        (route) => false,
+            (route) => false,
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error saving data: "+e.toString()), backgroundColor: Colors.red),
+        SnackBar(content: Text("Error saving data: ${e.toString()}"), backgroundColor: Colors.red),
       );
     }
+
     setState(() => _isLoading = false);
   }
 
@@ -112,40 +133,40 @@ class _InterestsSelectionScreenState extends State<InterestsSelectionScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "INTEREST",
+                      "SKILLS",
                       style: TextStyle(
                           color: Color(0xFFFFEC3D),
                           fontSize: 30,
                           fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      "What are your interests?",
-                      style:
-                      GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w600),
+                      "What skills do you have?",
+                      style: GoogleFonts.inter(
+                          fontSize: 18, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "Add interests to help others find you",
-                      style:
-                      GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+                      "Add skills to help others find you",
+                      style: GoogleFonts.inter(
+                          fontSize: 14, color: Colors.grey[600]),
                     ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: _searchController,
                       decoration: InputDecoration(
-                        hintText: "Search interests...",
+                        hintText: "Search skills...",
                         prefixIcon: const Icon(Icons.search),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
                         filled: true,
-                        fillColor: Colors.transparent
+                        fillColor: Colors.transparent,
                       ),
                     ),
                     const SizedBox(height: 16),
-                    if (selectedInterests.isNotEmpty) ...[
+                    if (selectedSkills.isNotEmpty) ...[
                       Text(
-                        "Selected Interests (${selectedInterests.length})",
+                        "Selected Skills (${selectedSkills.length})",
                         style: GoogleFonts.inter(
                             fontSize: 16, fontWeight: FontWeight.w600),
                       ),
@@ -153,15 +174,15 @@ class _InterestsSelectionScreenState extends State<InterestsSelectionScreen> {
                       Wrap(
                         spacing: 8,
                         runSpacing: 4,
-                        children: selectedInterests
+                        children: selectedSkills
                             .map(
-                              (interest) => Chip(
-                            label: Text(interest,
+                              (skill) => Chip(
+                            label: Text(skill,
                                 style: const TextStyle(color: Colors.black)),
                             backgroundColor: Color(0xFFFFEC3D),
                             deleteIcon: const Icon(Icons.close,
                                 color: Colors.black, size: 16),
-                            onDeleted: () => _toggleInterest(interest),
+                            onDeleted: () => _toggleSkill(skill),
                           ),
                         )
                             .toList(),
@@ -174,63 +195,64 @@ class _InterestsSelectionScreenState extends State<InterestsSelectionScreen> {
               Expanded(
                 child: ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: filteredInterests.length,
+                  itemCount: filteredSkills.length,
                   itemBuilder: (context, index) {
-                    final interest = filteredInterests[index];
-                    final isSelected = selectedInterests.contains(interest);
+                    final skill = filteredSkills[index];
+                    final isSelected = selectedSkills.contains(skill);
+
                     return Card(
-                      shape: RoundedRectangleBorder(
-                        side: BorderSide(color: Color(0xFFFFEC3D), width: 2),
-                        borderRadius: BorderRadius.circular(24),
-                      ),
                       elevation: 0,
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
-                        title: Text(interest),
+                        shape: RoundedRectangleBorder(
+                          side: BorderSide(color: Color(0xFFFFEC3D), width: 2),
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        title: Text(skill),
                         trailing: Icon(
                           isSelected
                               ? Icons.check_circle
                               : Icons.add_circle_outline,
                           color: isSelected ? Colors.green : Colors.grey,
                         ),
-                        onTap: () => _toggleInterest(interest),
+                        onTap: () => _toggleSkill(skill),
                         selected: isSelected,
+
                       ),
                     );
                   },
                 ),
               ),
-              const SizedBox(height: 80),
+              const SizedBox(height: 80), // Spacer for button
             ],
           ),
           Positioned(
-            bottom: 16,
+            bottom: 20,
             left: 16,
             right: 16,
             child: ElevatedButton(
-              onPressed: _isLoading ? null : _saveAndContinue,
+              onPressed: () {
+                final userData = Map<String, dynamic>.from(widget.userData);
+                userData['skills'] = selectedSkills;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => InterestsSelectionScreen(userData: userData)),
+                );
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Color(0xFFFFEC3D),
                 foregroundColor: Colors.black,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: _isLoading
-                  ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
-              )
-                  : Text(
-                "Continue 3/5",
-              ),
+              child: const Text("CONTINUE 2/5"),
             ),
           ),
         ],
       ),
     );
   }
-} 
+}
+
+

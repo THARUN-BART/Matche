@@ -200,6 +200,7 @@ class _MatchesScreenState extends State<MatchesScreen>
                   isConnected: true,
                   hasSentRequest: false,
                   onTap: () => _openProfile(context, user, connectionId),
+                  onAvatarTap: () => _openProfile(context, user, connectionId),
                   onMessage: () => _openChat(context, connectionId, user['name']),
                 );
               },
@@ -279,6 +280,34 @@ class _MatchesScreenState extends State<MatchesScreen>
                   isConnected: false,
                   hasSentRequest: hasSentRequest,
                   onTap: () => _showUserPreview(context, user, suggestionId),
+                  onAvatarTap: () {
+                    final name = user['name'] ?? 'Unknown';
+                    final skills = (user['skills'] is List && user['skills'].isNotEmpty)
+                        ? (user['skills'] as List).join(', ')
+                        : 'Not specified';
+                    final gender = user['gender'] ?? 'Not specified';
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text(name),
+                        content: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Skills: $skills'),
+                            SizedBox(height: 8),
+                            Text('Gender: $gender'),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            child: Text('Close'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                   onConnect: (hasSentRequest || hasRejectedRequest)
                       ? null
                       : () => _sendConnectionRequest(context, suggestionId),

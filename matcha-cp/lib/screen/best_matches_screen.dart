@@ -20,13 +20,14 @@ class BestMatchesScreen extends StatelessWidget {
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(onPressed: (){
+          Navigator.pop(context);
+        }, icon: Icon(Icons.arrow_back_ios)),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: RefreshIndicator(
           onRefresh: () async {
-            // Optionally, you can trigger a reload in your services if needed
-            // For now, just wait a moment to simulate refresh
             await Future.delayed(Duration(milliseconds: 500));
           },
           child: Column(

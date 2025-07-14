@@ -17,25 +17,12 @@ class _BigFiveSelectionScreenState extends State<BigFiveSelectionScreen> {
   Map<String, double> _big5 = {'O': 0.5, 'C': 0.5, 'E': 0.5, 'A': 0.5, 'N': 0.5};
   bool _isLoading = false;
 
-  Future<void> _storeFCMToken(String userId) async {
-    try {
-      String? token = await FirebaseMessaging.instance.getToken();
-      if (token != null && token.isNotEmpty) {
-        await _firestore.collection('users').doc(userId).update({
-          'fcmToken': token,
-          'lastTokenUpdate': FieldValue.serverTimestamp(),
-        });
-        await NotificationService().storeTokenAfterLogin(userId);
-      }
-    } catch (e) {}
-  }
-
   Future<void> _saveAndContinue() async {
     setState(() => _isLoading = true);
     try {
       final userData = Map<String, dynamic>.from(widget.userData);
       userData['big5'] = _big5;
-      await _storeFCMToken(userData['uid']);
+      await NotificationService().storeTokenAfterLogin(userData['uid']);
       await _firestore.collection("users").doc(userData['uid']).set(userData, SetOptions(merge: true));
       Navigator.pushAndRemoveUntil(
         context,

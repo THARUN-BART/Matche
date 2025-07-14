@@ -636,6 +636,9 @@ class _ChatScreenState extends State<ChatScreen> {
         title: _isLoadingUser
             ? const Text("Loading...")
             : Text(_otherUserName, style: GoogleFonts.salsa()),
+        leading: IconButton(onPressed: (){
+          Navigator.pop(context);
+        }, icon: Icon(Icons.arrow_back_ios)),
         actions: [
           IconButton(
             onPressed: () => _makePhoneCall(),

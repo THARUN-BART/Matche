@@ -10,6 +10,7 @@ class ConnectionCard extends StatefulWidget {
   final Future<bool> Function()? onResend;
   final bool isLoading;
   final double? cardHeight;
+  final VoidCallback? onAvatarTap;
 
   const ConnectionCard({
     super.key,
@@ -22,6 +23,7 @@ class ConnectionCard extends StatefulWidget {
     this.onResend,
     this.isLoading = false,
     this.cardHeight,
+    this.onAvatarTap,
   });
 
   @override
@@ -83,16 +85,19 @@ class _ConnectionCardState extends State<ConnectionCard> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                CircleAvatar(
-                  backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                  child: avatarUrl == null
-                      ? Text(
-                    name[0].toUpperCase(),
-                    style: const TextStyle(color: Colors.black,fontWeight: FontWeight.bold,fontSize: 24),
-                  )
-                      : null,
-                  radius: 26,
-                  backgroundColor: Color(0xFFFFEC3D),
+                GestureDetector(
+                  onTap: widget.onAvatarTap,
+                  child: CircleAvatar(
+                    backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                    child: avatarUrl == null
+                        ? Text(
+                      name[0].toUpperCase(),
+                      style: const TextStyle(color: Colors.black,fontWeight: FontWeight.bold,fontSize: 24),
+                    )
+                        : null,
+                    radius: 26,
+                    backgroundColor: Color(0xFFFFEC3D),
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(

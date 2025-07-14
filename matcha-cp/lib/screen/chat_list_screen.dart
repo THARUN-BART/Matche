@@ -999,7 +999,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.groupName),
-        backgroundColor: Colors.green,
+        backgroundColor: Color(0xFFFFEC3D),
         foregroundColor: Colors.white,
         actions: [
           IconButton(

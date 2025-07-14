@@ -14,14 +14,12 @@ import 'package:matcha/splash_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-// This needs to be a top-level function
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  // Ensure Firebase is initialized
   if (Firebase.apps.isEmpty) {
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   }
-  
+
   // Initialize Firebase Realtime Database
   FirebaseDatabase.instance.databaseURL = 'https://matche-39f37-default-rtdb.firebaseio.com';
   
@@ -130,7 +128,6 @@ Future<void> main() async {
     ));
   } catch (e) {
     print('Error initializing Firebase: $e');
-    // Run app even if Firebase fails to initialize
     runApp(MultiProvider(
       providers: [
         Provider<FirestoreService>(create: (_) => FirestoreService()),

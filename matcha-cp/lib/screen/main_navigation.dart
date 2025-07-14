@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'NavigationScreen/home_screen.dart';
 import 'NavigationScreen/matches_screen.dart';
 import 'NavigationScreen/messages_screen.dart';
@@ -9,7 +8,6 @@ import 'NavigationScreen/settings.dart';
 import 'account_info.dart';
 import '../service/notification_service.dart';
 import '../service/firestore_service.dart';
-import '../widget/common_widget.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -57,31 +55,81 @@ class _MainNavigationState extends State<MainNavigation> {
     }
   }
 
+  IconData getIconFromLetter(String letter) {
+    switch (letter.toUpperCase()) {
+      case 'A':
+        return Icons.person;
+      case 'B':
+        return Icons.person_outline;
+      case 'C':
+        return Icons.account_circle;
+      case 'D':
+        return Icons.face;
+      case 'E':
+        return Icons.emoji_people;
+      default:
+        return Icons.account_circle;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final notificationService = Provider.of<NotificationService>(context);
-    
+    final firestoreService = Provider.of<FirestoreService>(context, listen: false);
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          "MATCHE",
-          style: GoogleFonts.salsa(
-            color: Color(0xFFFFEC3D),
-            fontSize: 35,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: Image.asset('Assets/Star.png', height: 100),
         centerTitle: true,
-        backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
-        leading: IconButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const AccountInfo()),
+        leading: FutureBuilder(
+          future: firestoreService.getCurrentUserData(),
+          builder: (context, snapshot) {
+            if (snapshot.hasData && snapshot.data!.exists) {
+              final userData = snapshot.data!.data() as Map<String, dynamic>;
+              final name = userData['name'] ?? 'User';
+              final firstLetter = name.isNotEmpty ? name[0].toUpperCase() : 'U';
+
+              return IconButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AccountInfo()),
+                  );
+                },
+                icon: CircleAvatar(
+                  backgroundColor: Color(0xFFFFEC3D),
+                  child: Text(
+                    firstLetter,
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ),
+                tooltip: 'Account Info',
+              );
+            }
+
+            // Loading state or fallback
+            return IconButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AccountInfo()),
+                );
+              },
+              icon: const CircleAvatar(
+                backgroundColor: Color(0xFFFFEC3D),
+                child: Icon(
+                  Icons.person,
+                  color: Colors.black,
+                ),
+              ),
+              tooltip: 'Account Info',
             );
           },
-          icon: const Icon(Icons.account_circle, size: 30),
         ),
         actions: [
           StreamBuilder(
@@ -129,13 +177,26 @@ class _MainNavigationState extends State<MainNavigation> {
           });
         },
         type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.deepPurple,
+        selectedItemColor: Color(0xFFFFEC3D),
         unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Matches'),
-          BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Messages'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+        items: [
+          const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(
+            icon: SvgPicture.asset(
+              'Assets/match.svg',
+              width: 25,
+              height: 25,
+              color: Colors.grey,
+            ),
+            activeIcon: SvgPicture.asset(
+              'Assets/Group.svg',
+              width: 30,
+              height: 30,
+            ),
+            label: 'Matches',
+          ),
+          const BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Messages'),
+          const BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
         ],
       ),
     );
@@ -144,7 +205,7 @@ class _MainNavigationState extends State<MainNavigation> {
   void _showNotifications(BuildContext context) {
     final notificationService = Provider.of<NotificationService>(context, listen: false);
     final firestoreService = Provider.of<FirestoreService>(context, listen: false);
-    
+
     showModalBottomSheet(
       context: context,
       builder: (context) => Container(
@@ -165,7 +226,7 @@ class _MainNavigationState extends State<MainNavigation> {
                     notificationService.clearAllNotifications();
                     Navigator.pop(context);
                   },
-                  child: const Text('Clear All'),
+                  child: const Text('Clear All', style: TextStyle(color: Color(0xFFFFEC3D))),
                 ),
               ],
             ),
@@ -207,7 +268,7 @@ class _MainNavigationState extends State<MainNavigation> {
                       )),
                       // Show other unique notifications
                       ...uniqueOther.values.map((n) => ListTile(
-                        leading: const Icon(Icons.notifications, color: Colors.deepPurple),
+                        leading: const Icon(Icons.notifications, color: Color(0xFFFFEC3D)),
                         title: Text(n['title'] ?? 'Notification'),
                         subtitle: Text(n['body'] ?? ''),
                         trailing: Icon(Icons.check, color: Colors.green),

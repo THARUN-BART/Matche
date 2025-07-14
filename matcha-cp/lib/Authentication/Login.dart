@@ -174,15 +174,21 @@ class _LoginState extends State<Login> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
+      appBar: AppBar(
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_outlined,size: 30.0),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+      ),
+      body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
           child: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Image.asset('Assets/IC.png', height: 300),
-              ),
+
+              Image.asset('Assets/Main_IC.png',width:300),
               Text(
                 'Sign In',
                 style: GoogleFonts.salsa(
@@ -192,11 +198,14 @@ class _LoginState extends State<Login> {
               const SizedBox(height: 20),
               TextField(
                 controller: _emailController,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(25.0),
+                  ),
+
                   labelText: "Email",
                   hintText: 'abc@gmail.com',
-                  prefixIcon: Icon(Icons.email_outlined),
+                  prefixIcon: const Icon(Icons.email_outlined),
                 ),
               ),
               const SizedBox(height: 16),
@@ -204,7 +213,9 @@ class _LoginState extends State<Login> {
                 controller: _passwordController,
                 obscureText: _obsecureText,
                 decoration: InputDecoration(
-                  border: const OutlineInputBorder(),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(25.0),
+                  ),
                   labelText: "Password",
                   prefixIcon: const Icon(Icons.key),
                   suffixIcon: IconButton(
@@ -213,35 +224,18 @@ class _LoginState extends State<Login> {
                   ),
                 ),
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: _showForgotPasswordDialog,
-                    child: const Text(
-                      'Forgot Password?',
-                      style: TextStyle(fontSize: 18, color: Colors.blue),
-                    ),
-                  ),
-                ],
-              ),
               const SizedBox(height: 20),
               _isLoading
                   ? const CircularProgressIndicator()
                   : GradientButton(text: "LOGIN", onPressed: _login),
-              const SizedBox(height: 30),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text("Don't have an account?"),
+                  SizedBox(height: 20,),
                   TextButton(
-                    onPressed: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => const Signup()));
-                    },
-                    child: const Text("Sign Up", style: TextStyle(color: Colors.blue)),
+                    onPressed: _showForgotPasswordDialog,
+                    child: const Text(
+                      'Forgot Password?',
+                      style: TextStyle(fontSize: 18, color: Colors.white),
+                    ),
                   ),
-                ],
-              ),
             ],
           ),
         ),

@@ -47,6 +47,7 @@ dependencies:
   http: ^1.1.0
   emoji_picker_flutter: ^4.3.0
   url_launcher: ^6.2.5
+  flutter_svg: ^2.2.0
 
 
 dev_dependencies:
@@ -75,6 +76,9 @@ flutter:
   assets:
      - Assets/IC.png
      - Assets/Main_IC.png
+     - Assets/Star.png
+     - Assets/match.svg
+     - Assets/Group.svg
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

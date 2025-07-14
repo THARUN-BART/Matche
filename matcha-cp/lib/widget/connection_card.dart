@@ -9,6 +9,7 @@ class ConnectionCard extends StatefulWidget {
   final Future<bool> Function()? onConnect;
   final Future<bool> Function()? onResend;
   final bool isLoading;
+  final double? cardHeight;
 
   const ConnectionCard({
     super.key,
@@ -20,6 +21,7 @@ class ConnectionCard extends StatefulWidget {
     this.onConnect,
     this.onResend,
     this.isLoading = false,
+    this.cardHeight,
   });
 
   @override
@@ -66,105 +68,107 @@ class _ConnectionCardState extends State<ConnectionCard> {
       child: widget.isLoading
           ? _buildSkeleton()
           : Card(
-              elevation: 3,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              margin: const EdgeInsets.only(bottom: 16),
-              child: ListTile(
-                leading: CircleAvatar(
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25),
+          side: BorderSide(
+          color: Color(0xFFFFEC3D), // You can customize color
+          width: 1.2,           // Adjust thickness as needed
+        ),
+      ),
+        margin: const EdgeInsets.only(bottom: 16),
+        child: SizedBox(
+          height: widget.cardHeight ?? 72,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                CircleAvatar(
                   backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                  child: avatarUrl == null ? Text(name[0].toUpperCase()) : null,
+                  child: avatarUrl == null
+                      ? Text(
+                    name[0].toUpperCase(),
+                    style: const TextStyle(color: Colors.black,fontWeight: FontWeight.bold,fontSize: 24),
+                  )
+                      : null,
                   radius: 26,
+                  backgroundColor: Color(0xFFFFEC3D),
                 ),
-                title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis),
-                onTap: widget.onTap,
-                trailing: _buildTrailingWidget(),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.white),
+                      ),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    ],
+                  ),
+                ),
+                _buildTrailingWidget(),
+              ],
             ),
+          ),
+        ),
+      ),
     );
   }
 
   Widget _buildTrailingWidget() {
     if (_isConnected) {
       return IconButton(
-        icon: const Icon(Icons.message, color: Colors.deepPurple),
+        icon: const Icon(Icons.chat, color: Colors.white),
         onPressed: widget.onMessage,
         tooltip: 'Message',
       );
     } else if (_hasSentRequest) {
-      return AnimatedSwitcher(
-        duration: const Duration(milliseconds: 250),
-        child: ElevatedButton.icon(
-          key: const ValueKey('requested'),
-          onPressed: null,
-          icon: const Icon(Icons.hourglass_top, size: 18),
-          label: const Text('Requested'),
-          style: ElevatedButton.styleFrom(
-            disabledBackgroundColor: Colors.grey[400],
-            disabledForegroundColor: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            elevation: 0,
-          ),
+      return ElevatedButton.icon(
+        key: const ValueKey('requested'),
+        onPressed: null,
+        icon: const Icon(Icons.hourglass_top, size: 18),
+        label: const Text('Requested'),
+        style: ElevatedButton.styleFrom(
+          disabledBackgroundColor: Colors.grey[400],
+          disabledForegroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 0,
         ),
       );
     } else if (widget.onResend != null) {
-      return AnimatedSwitcher(
-        duration: const Duration(milliseconds: 250),
-        child: _isButtonLoading
-            ? const SizedBox(
-                width: 32,
-                height: 32,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : ElevatedButton.icon(
-                key: const ValueKey('resend'),
-                onPressed: () async {
-                  setState(() => _isButtonLoading = true);
-                  final result = await widget.onResend!();
-                  setState(() {
-                    _hasSentRequest = result;
-                    _isButtonLoading = false;
-                  });
-                },
-                icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('Resend'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 0,
-                ),
-              ),
+      return _isButtonLoading
+          ? const SizedBox(width: 32, height: 32, child: CircularProgressIndicator(strokeWidth: 2))
+          : IconButton(
+        icon: const Icon(Icons.refresh, size: 25, color: Colors.black),
+        onPressed: () async {
+          setState(() => _isButtonLoading = true);
+          final result = await widget.onResend!();
+          setState(() {
+            _hasSentRequest = result;
+            _isButtonLoading = false;
+          });
+        },
       );
     } else {
-      return AnimatedSwitcher(
-        duration: const Duration(milliseconds: 250),
-        child: _isButtonLoading
-            ? const SizedBox(
-                width: 32,
-                height: 32,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : ElevatedButton.icon(
-                key: const ValueKey('connect'),
-                onPressed: () async {
-                  setState(() => _isButtonLoading = true);
-                  final result = await widget.onConnect?.call();
-                  setState(() {
-                    _hasSentRequest = result ?? true;
-                    _isButtonLoading = false;
-                  });
-                },
-                icon: const Icon(Icons.person_add_alt_1, size: 18),
-                label: const Text('Connect'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 0,
-                ),
-              ),
+      return _isButtonLoading
+          ? const SizedBox(width: 32, height: 32, child: CircularProgressIndicator(strokeWidth: 2))
+          : IconButton(
+        icon: const Icon(Icons.person_add_alt_1, size: 25, color: Colors.white),
+        onPressed: () async {
+          setState(() => _isButtonLoading = true);
+          final result = await widget.onConnect?.call();
+          setState(() {
+            _hasSentRequest = result ?? true;
+            _isButtonLoading = false;
+          });
+        },
       );
     }
   }
@@ -172,33 +176,45 @@ class _ConnectionCardState extends State<ConnectionCard> {
   Widget _buildSkeleton() {
     return Card(
       elevation: 3,
+      color: const Color(0xFFFFEC3D),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       margin: const EdgeInsets.only(bottom: 16),
-      child: ListTile(
-        leading: Container(
-          width: 52,
-          height: 52,
-          decoration: BoxDecoration(
-            color: Colors.grey[300],
-            borderRadius: BorderRadius.circular(26),
-          ),
-        ),
-        title: Container(
-          width: 80,
-          height: 16,
-          color: Colors.grey[300],
-        ),
-        subtitle: Container(
-          width: 120,
-          height: 12,
-          color: Colors.grey[200],
-        ),
-        trailing: Container(
-          width: 80,
-          height: 36,
-          decoration: BoxDecoration(
-            color: Colors.grey[300],
-            borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        height: widget.cardHeight ?? 72,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(26),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(width: 80, height: 16, color: Colors.grey[300]),
+                    const SizedBox(height: 6),
+                    Container(width: 120, height: 12, color: Colors.grey[200]),
+                  ],
+                ),
+              ),
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ],
           ),
         ),
       ),

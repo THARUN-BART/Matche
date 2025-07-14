@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -15,18 +17,20 @@ class MatchesScreen extends StatefulWidget {
   State<MatchesScreen> createState() => _MatchesScreenState();
 }
 
-class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProviderStateMixin {
+class _MatchesScreenState extends State<MatchesScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   Set<String> _connectedUserIds = {};
   Set<String> _sentRequestUserIds = {};
   Set<String> _rejectedRequestUserIds = {};
+  List<StreamSubscription> _subscriptions = [];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _fetchConnectionsAndRequests();
-    
+
     // Check if we need to navigate to a specific tab
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkTabArguments();
@@ -38,17 +42,19 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
     if (args != null) {
       final tab = args['tab'] as String?;
       if (tab != null) {
+        int tabIndex = 0;
         switch (tab) {
           case 'requests':
-            _tabController.animateTo(2); // Requests tab
+            tabIndex = 2;
             break;
           case 'suggestions':
-            _tabController.animateTo(1); // Suggestions tab
+            tabIndex = 1;
             break;
           case 'matches':
-            _tabController.animateTo(0); // Matches tab
+            tabIndex = 0;
             break;
         }
+        _tabController.animateTo(tabIndex);
       }
     }
   }
@@ -56,37 +62,50 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
   Future<void> _fetchConnectionsAndRequests() async {
     final firestoreService = Provider.of<FirestoreService>(context, listen: false);
 
-    // Listen to connections
-    firestoreService.getUserConnections().listen((snapshot) {
-      setState(() {
-        _connectedUserIds = snapshot.docs.map((doc) => doc.id).toSet();
-      });
+    // Listen to connections with proper subscription management
+    final connectionsSubscription = firestoreService.getUserConnections().listen((snapshot) {
+      if (mounted) {
+        setState(() {
+          _connectedUserIds = snapshot.docs.map((doc) => doc.id).toSet();
+        });
+      }
     });
+    _subscriptions.add(connectionsSubscription);
 
     // Listen to sent requests
-    firestoreService.getSentConnectionRequests().listen((snapshot) {
-      setState(() {
-        _sentRequestUserIds = snapshot.docs.map((doc) => doc.id).toSet();
-      });
+    final sentRequestsSubscription = firestoreService.getSentConnectionRequests().listen((snapshot) {
+      if (mounted) {
+        setState(() {
+          _sentRequestUserIds = snapshot.docs.map((doc) => doc.id).toSet();
+        });
+      }
     });
+    _subscriptions.add(sentRequestsSubscription);
 
     // Listen to rejected requests
     _listenToRejectedRequests();
   }
 
-  Future<void> _listenToRejectedRequests() async {
+  void _listenToRejectedRequests() {
     final firestoreService = Provider.of<FirestoreService>(context, listen: false);
-    
-    firestoreService.getRejectedConnectionRequests().listen((snapshot) {
-      setState(() {
-        _rejectedRequestUserIds = snapshot.docs.map((doc) => doc.id).toSet();
-      });
+
+    final rejectedRequestsSubscription = firestoreService.getRejectedConnectionRequests().listen((snapshot) {
+      if (mounted) {
+        setState(() {
+          _rejectedRequestUserIds = snapshot.docs.map((doc) => doc.id).toSet();
+        });
+      }
     });
+    _subscriptions.add(rejectedRequestsSubscription);
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    // Cancel all subscriptions
+    for (final subscription in _subscriptions) {
+      subscription.cancel();
+    }
     super.dispose();
   }
 
@@ -94,12 +113,17 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Connections',style: TextStyle(fontWeight: FontWeight.bold),),
+        title: const Text(
+          'Connections',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         centerTitle: true,
         bottom: TabBar(
           controller: _tabController,
+          labelColor: const Color(0xFFFFEC3D),
+          indicatorColor: const Color(0xFFFFEC3D),
           tabs: const [
-            Tab(text: 'Matches'),
+            Tab(text: 'Connected'),
             Tab(text: 'Suggestions'),
             Tab(text: 'Requests'),
           ],
@@ -116,7 +140,6 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
     );
   }
 
-  /// Builds the "Matches" tab
   Widget _buildMatchesTab() {
     final firestoreService = Provider.of<FirestoreService>(context);
 
@@ -134,7 +157,19 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
         final connections = snapshot.data?.docs ?? [];
 
         if (connections.isEmpty) {
-          return const Center(child: Text('No matches yet'));
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.people_outline, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text(
+                  'No matches yet',
+                  style: TextStyle(fontSize: 18, color: Colors.grey),
+                ),
+              ],
+            ),
+          );
         }
 
         return ListView.builder(
@@ -175,7 +210,6 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
     );
   }
 
-  /// Builds the "Suggestions" tab
   Widget _buildSuggestionsTab() {
     final firestoreService = Provider.of<FirestoreService>(context);
 
@@ -193,7 +227,19 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
         final suggestions = snapshot.data?.docs ?? [];
 
         if (suggestions.isEmpty) {
-          return const Center(child: Text('No suggestions available'));
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.person_search, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text(
+                  'No suggestions available',
+                  style: TextStyle(fontSize: 18, color: Colors.grey),
+                ),
+              ],
+            ),
+          );
         }
 
         return ListView.builder(
@@ -203,7 +249,8 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
             final suggestionId = suggestions[index].id;
 
             // Skip if user is already connected or is the current user
-            if (_connectedUserIds.contains(suggestionId) || suggestionId == firestoreService.currentUserId) {
+            if (_connectedUserIds.contains(suggestionId) ||
+                suggestionId == firestoreService.currentUserId) {
               return const SizedBox.shrink();
             }
 
@@ -224,7 +271,6 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
                 }
 
                 final user = userSnapshot.data!.data() as Map<String, dynamic>;
-
                 final hasSentRequest = _sentRequestUserIds.contains(suggestionId);
                 final hasRejectedRequest = _rejectedRequestUserIds.contains(suggestionId);
 
@@ -232,56 +278,12 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
                   user: user,
                   isConnected: false,
                   hasSentRequest: hasSentRequest,
-                  onTap: () => _openProfile(context, user, suggestionId),
+                  onTap: () => _showUserPreview(context, user, suggestionId),
                   onConnect: (hasSentRequest || hasRejectedRequest)
                       ? null
-                      : () async {
-                          setState(() {
-                            _sentRequestUserIds.add(suggestionId);
-                          });
-                          try {
-                            await Provider.of<FirestoreService>(context, listen: false)
-                                .sendConnectionRequest(
-                                    Provider.of<FirestoreService>(context, listen: false).currentUserId, suggestionId);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Connection requested!'), backgroundColor: Colors.green),
-                            );
-                            return true;
-                          } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
-                            );
-                            setState(() {
-                              _sentRequestUserIds.remove(suggestionId);
-                            });
-                            return false;
-                          }
-                        },
+                      : () => _sendConnectionRequest(context, suggestionId),
                   onResend: hasRejectedRequest
-                      ? () async {
-                          setState(() {
-                            _sentRequestUserIds.add(suggestionId);
-                            _rejectedRequestUserIds.remove(suggestionId);
-                          });
-                          try {
-                            await Provider.of<FirestoreService>(context, listen: false)
-                                .sendConnectionRequest(
-                                    Provider.of<FirestoreService>(context, listen: false).currentUserId, suggestionId);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Connection requested!'), backgroundColor: Colors.green),
-                            );
-                            return true;
-                          } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.red),
-                            );
-                            setState(() {
-                              _sentRequestUserIds.remove(suggestionId);
-                              _rejectedRequestUserIds.add(suggestionId);
-                            });
-                            return false;
-                          }
-                        }
+                      ? () => _resendConnectionRequest(context, suggestionId)
                       : null,
                 );
               },
@@ -292,22 +294,38 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
     );
   }
 
-  /// Builds the "Requests" tab
   Widget _buildRequestsTab() {
     final firestoreService = Provider.of<FirestoreService>(context);
+
     return StreamBuilder<QuerySnapshot>(
       stream: firestoreService.getReceivedConnectionRequests(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(child: Text('Error: ${snapshot.error}'));
         }
+
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const SkeletonList(itemCount: 5);
         }
+
         final requests = snapshot.data?.docs ?? [];
+
         if (requests.isEmpty) {
-          return const Center(child: Text('No pending requests'));
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.notification_important_outlined, size: 64, color: Colors.grey),
+                SizedBox(height: 16),
+                Text(
+                  'No pending requests',
+                  style: TextStyle(fontSize: 18, color: Colors.grey),
+                ),
+              ],
+            ),
+          );
         }
+
         return ListView.builder(
           padding: const EdgeInsets.all(16),
           itemCount: requests.length,
@@ -315,7 +333,7 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
             final request = requests[index];
             final requestData = request.data() as Map<String, dynamic>;
             final fromUserId = requestData['from'] as String;
-            
+
             return FutureBuilder<DocumentSnapshot>(
               future: firestoreService.getUserById(fromUserId),
               builder: (context, userSnapshot) {
@@ -325,36 +343,65 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
                     title: Text('Loading...'),
                   );
                 }
+
                 if (!userSnapshot.hasData || userSnapshot.data?.data() == null) {
                   return const ListTile(
                     title: Text('User not found'),
                   );
                 }
+
                 final user = userSnapshot.data!.data() as Map<String, dynamic>;
+
                 return Card(
-                  child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundImage: user['avatarUrl'] != null ? NetworkImage(user['avatarUrl']) : null,
-                      child: user['avatarUrl'] == null
-                          ? Text(user['name']?[0]?.toUpperCase() ?? '?')
-                          : null,
+                  elevation: 3,
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: const Color(0xFFFFEC3D),
+                        width: 1.2,
+                      ),
                     ),
-                    title: Text(user['name'] ?? 'Unknown'),
-                    subtitle: Text(user['email'] ?? ''),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.close, color: Colors.red),
-                          onPressed: () => _declineConnectionRequest(request.id),
-                          tooltip: 'Decline',
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.check, color: Colors.green),
-                          onPressed: () => _acceptConnectionRequest(request.id, fromUserId),
-                          tooltip: 'Accept',
-                        ),
-                      ],
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: const Color(0xFFFFEC3D),
+                        backgroundImage: user['avatarUrl'] != null
+                            ? NetworkImage(user['avatarUrl'])
+                            : null,
+                        child: user['avatarUrl'] == null
+                            ? Text(
+                          user['name']?[0]?.toUpperCase() ?? '?',
+                          style: const TextStyle(
+                            color: Colors.black,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                            : null,
+                      ),
+                      title: Text(
+                        user['name'] ?? 'Unknown',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Text(user['email'] ?? ''),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.red),
+                            onPressed: () => _declineConnectionRequest(request.id),
+                            tooltip: 'Decline',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.check, color: Colors.green),
+                            onPressed: () => _acceptConnectionRequest(request.id, fromUserId),
+                            tooltip: 'Accept',
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -366,24 +413,86 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
     );
   }
 
-  /// Opens profile view screen
-  void _openProfile(BuildContext context, Map<String, dynamic> user, String userId) {
-    // Only allow if connected
-    if (_connectedUserIds.contains(userId)) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ProfileViewScreen(
-            user: user, 
-            userId: userId,
+  /// Shows a preview of the user profile for suggestions
+  void _showUserPreview(BuildContext context, Map<String, dynamic> user, String userId) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                radius: 50,
+                backgroundColor: const Color(0xFFFFEC3D),
+                backgroundImage: user['avatarUrl'] != null
+                    ? NetworkImage(user['avatarUrl'])
+                    : null,
+                child: user['avatarUrl'] == null
+                    ? Text(
+                  user['name']?[0]?.toUpperCase() ?? '?',
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 24,
+                  ),
+                )
+                    : null,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                user['name'] ?? 'Unknown',
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                user['email'] ?? '',
+                style: const TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Close'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _sendConnectionRequest(context, userId);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFFEC3D),
+                      foregroundColor: Colors.black,
+                    ),
+                    child: const Text('Connect'),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('You must accept the connection to view this profile.')),
-      );
-    }
+      ),
+    );
+  }
+
+  /// Opens profile view screen (only for connected users)
+  void _openProfile(BuildContext context, Map<String, dynamic> user, String userId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ProfileViewScreen(
+          user: user,
+          userId: userId,
+        ),
+      ),
+    );
   }
 
   /// Opens chat screen
@@ -410,19 +519,38 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
   }
 
   /// Sends a connection request
-  Future<void> _sendConnectionRequest(BuildContext context, String recipientId) async {
+  Future<bool> _sendConnectionRequest(BuildContext context, String recipientId) async {
     final firestoreService = Provider.of<FirestoreService>(context, listen: false);
     final currentUserId = firestoreService.currentUserId;
 
+    setState(() {
+      _sentRequestUserIds.add(recipientId);
+    });
+
     try {
       await firestoreService.sendConnectionRequest(currentUserId, recipientId);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Connection request sent')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Connection request sent!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      return true;
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to send request: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send request: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _sentRequestUserIds.remove(recipientId);
+        });
+      }
+      return false;
     }
   }
 
@@ -434,7 +562,7 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
         fromUserId: fromUserId,
         toUserId: firestoreService.currentUserId,
       );
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -459,7 +587,7 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
     try {
       final firestoreService = Provider.of<FirestoreService>(context, listen: false);
       await firestoreService.rejectConnectionRequest(requestId);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -480,19 +608,42 @@ class _MatchesScreenState extends State<MatchesScreen> with SingleTickerProvider
     }
   }
 
-  Future<void> _resendConnectionRequest(BuildContext context, String recipientId) async {
-    final firestoreService = Provider.of<FirestoreService>(context, listen: false);
-    final currentUserId = firestoreService.currentUserId;
+  Future<bool> _resendConnectionRequest(BuildContext context, String recipientId) async {
+    setState(() {
+      _sentRequestUserIds.add(recipientId);
+      _rejectedRequestUserIds.remove(recipientId);
+    });
 
     try {
-      await firestoreService.sendConnectionRequest(currentUserId, recipientId);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Connection request sent')),
+      final firestoreService = Provider.of<FirestoreService>(context, listen: false);
+      await firestoreService.sendConnectionRequest(
+        firestoreService.currentUserId,
+        recipientId,
       );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Connection request sent!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      return true;
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to resend request: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to resend request: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _sentRequestUserIds.remove(recipientId);
+          _rejectedRequestUserIds.add(recipientId);
+        });
+      }
+      return false;
     }
   }
 }

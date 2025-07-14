@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:provider/provider.dart';
+import 'package:matcha/Authentication/welcome_page.dart';
 import '../account_info.dart';
 import '../group_invitations_screen.dart';
-import '../../widget/notification_test_widget.dart';
-import '../../service/firestore_service.dart';
 import '../../service/notification_service.dart';
-import '../../Authentication/Login.dart';
 
 
 class SettingsScreen extends StatefulWidget {
@@ -549,7 +546,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (context.mounted) {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => const Login()),
+          MaterialPageRoute(builder: (context) => const welcome_page()),
           (route) => false,
         );
       }

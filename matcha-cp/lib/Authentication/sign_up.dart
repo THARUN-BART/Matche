@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:matcha/screen/main_navigation.dart';
 import 'package:matcha/service/notification_service.dart';
 import '../constants/Constant.dart';
+import 'dart:async';
 
 class Signup extends StatefulWidget {
   const Signup({super.key});
@@ -30,6 +31,12 @@ class _SignupState extends State<Signup> {
   bool _otpSent = false;
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _isEmailLocked = false;
+
+  // Countdown timer variables
+  Timer? _countdownTimer;
+  int _countdownSeconds = 0;
+  bool _canResendOTP = true;
 
   String selectedGender = 'Male';
   DateTime? selectedDOB;
@@ -46,6 +53,7 @@ class _SignupState extends State<Signup> {
     _passwordController.dispose();
     _ConfirmpasswordController.dispose();
     _otpController.dispose();
+    _countdownTimer?.cancel();
     super.dispose();
   }
 
@@ -58,26 +66,59 @@ class _SignupState extends State<Signup> {
     );
   }
 
+  void _startCountdown() {
+    setState(() {
+      _countdownSeconds = 60; // 1 minute countdown
+      _canResendOTP = false;
+    });
+
+    _countdownTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+      if (_countdownSeconds > 0) {
+        setState(() {
+          _countdownSeconds--;
+        });
+      } else {
+        setState(() {
+          _canResendOTP = true;
+        });
+        timer.cancel();
+      }
+    });
+  }
+
+  void _enableEmailEdit() {
+    setState(() {
+      _isEmailLocked = false;
+      _otpSent = false;
+      _otpController.clear();
+    });
+    _countdownTimer?.cancel();
+    setState(() {
+      _canResendOTP = true;
+      _countdownSeconds = 0;
+    });
+  }
+
   Future<void> _storeFCMTokenForNewUser(String userId) async {
     try {
       print('Getting FCM token for new user during signup: $userId');
-      
+
       // Get FCM token
       String? token = await FirebaseMessaging.instance.getToken();
-      
+
       if (token != null && token.isNotEmpty) {
         print('FCM token obtained during signup: ${token.substring(0, 20)}...');
-        
+
         // Store token in Firestore immediately
         await _firestore.collection('users').doc(userId).set({
           'fcmToken': token,
           'lastTokenUpdate': FieldValue.serverTimestamp(),
           'createdAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
-        
+
         // Also store in notification service
         await NotificationService().storeTokenAfterLogin(userId);
-        
+
         print('FCM token stored successfully during signup: $userId');
       } else {
         print('FCM token is null or empty during signup: $userId');
@@ -120,9 +161,33 @@ class _SignupState extends State<Signup> {
     setState(() {
       _otpSent = sent;
       _isLoading = false;
+      _isEmailLocked = sent;
     });
 
-    showSnack(sent ? "OTP sent" : "Failed to send OTP", success: sent);
+    if (sent) {
+      _startCountdown();
+      showSnack("OTP sent successfully", success: true);
+    } else {
+      showSnack("Failed to send OTP");
+    }
+  }
+
+  Future<void> resendOTP() async {
+    if (!_canResendOTP) return;
+
+    final email = _emailController.text.trim();
+    setState(() => _isLoading = true);
+
+    final sent = await EmailOTP.sendOTP(email: email);
+
+    setState(() => _isLoading = false);
+
+    if (sent) {
+      _startCountdown();
+      showSnack("OTP resent successfully", success: true);
+    } else {
+      showSnack("Failed to resend OTP");
+    }
   }
 
   Future<void> verifyOTP() async {
@@ -142,11 +207,8 @@ class _SignupState extends State<Signup> {
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
-
-      // Get FCM token immediately after user creation
       await _storeFCMTokenForNewUser(userCred.user!.uid);
-
-      // Prepare user data for skills screen
+      
       userData = {
         "name": _nameController.text.trim(),
         "phone": _phoneController.text.trim(),
@@ -172,13 +234,22 @@ class _SignupState extends State<Signup> {
     }
   }
 
-  Widget buildTextField(TextEditingController controller, String label, IconData icon, {bool isEmail = false}) {
+  Widget buildTextField(TextEditingController controller, String label, IconData icon, {bool isEmail = false,TextInputType? inputType}) {
     return TextFormField(
       controller: controller,
+      enabled: !_isEmailLocked || !isEmail,
       decoration: InputDecoration(
         labelText: label,
-        border: const OutlineInputBorder(),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(25.0),
+        ),
         prefixIcon: Icon(icon),
+        suffixIcon: isEmail && _isEmailLocked ?
+        IconButton(
+          icon: Icon(Icons.edit, color: Colors.blue),
+          onPressed: _enableEmailEdit,
+          tooltip: 'Edit Email',
+        ) : null,
       ),
       validator: (v) {
         if (v == null || v.trim().isEmpty) return "Enter $label";
@@ -186,7 +257,7 @@ class _SignupState extends State<Signup> {
         if (isEmail && !isValidEmail(v)) return "Invalid email";
         return null;
       },
-      keyboardType: isEmail ? TextInputType.emailAddress : TextInputType.text,
+      keyboardType: inputType ?? (isEmail ? TextInputType.emailAddress : TextInputType.text),
     );
   }
 
@@ -196,7 +267,9 @@ class _SignupState extends State<Signup> {
       obscureText: _obscurePassword,
       decoration: InputDecoration(
         labelText: labelText,
-        border: const OutlineInputBorder(),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(25.0),
+        ),
         prefixIcon: const Icon(Icons.lock),
         suffixIcon: IconButton(
           icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
@@ -213,15 +286,42 @@ class _SignupState extends State<Signup> {
   }
 
   Widget buildOTPField() {
-    return TextFormField(
-      controller: _otpController,
-      keyboardType: TextInputType.number,
-      decoration: const InputDecoration(
-        labelText: "Enter 6-digit OTP",
-        border: OutlineInputBorder(),
-        prefixIcon: Icon(Icons.sms),
-      ),
-      validator: (v) => v == null || v.length != 6 ? "Enter valid OTP" : null,
+    return Column(
+      children: [
+        TextFormField(
+          controller: _otpController,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: "Enter 6-digit OTP",
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(25.0),
+            ),
+            prefixIcon: Icon(Icons.sms),
+          ),
+          validator: (v) => v == null || v.length != 6 ? "Enter valid OTP" : null,
+        ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              _canResendOTP ? "Didn't receive OTP? " : "Resend OTP in ${_countdownSeconds}s",
+              style: TextStyle(color: Colors.grey[600]),
+            ),
+            if (_canResendOTP)
+              TextButton(
+                onPressed: _isLoading ? null : resendOTP,
+                child: Text(
+                  "Resend",
+                  style: TextStyle(
+                    color: Colors.blue,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -241,7 +341,6 @@ class _SignupState extends State<Signup> {
               ((now.month < picked.month || (now.month == picked.month && now.day < picked.day)) ? 1 : 0);
 
           if (age <= 13) {
-
             showDialog(
               context: context,
               builder: (context) => AlertDialog(
@@ -255,7 +354,7 @@ class _SignupState extends State<Signup> {
                 ],
               ),
             );
-            return; // Reject the date selection
+            return;
           }
 
           setState(() {
@@ -265,9 +364,11 @@ class _SignupState extends State<Signup> {
         }
       },
       child: InputDecorator(
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           labelText: 'Date of Birth',
-          border: OutlineInputBorder(),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(20.0),
+          ),
           contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 16),
         ),
         child: Row(
@@ -289,65 +390,153 @@ class _SignupState extends State<Signup> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text("Create An Account", style: GoogleFonts.salsa(fontSize: 32,color: Color(0xFFFFEC3D))),
-        shadowColor: Color(0xFFFFEC3D),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              buildTextField(_nameController, "Full Name", Icons.person),
-              const SizedBox(height: 16),
-              buildTextField(_phoneController, "Phone Number", Icons.phone),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: selectedGender,
-                items: ['Male', 'Female', 'Other']
-                    .map((g) => DropdownMenuItem(value: g, child: Text(g)))
-                    .toList(),
-                onChanged: (val) => setState(() => selectedGender = val!),
-                decoration: const InputDecoration(
-                  labelText: 'Gender',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              buildDOBPicker(),
-              const SizedBox(height: 16),
-              buildTextField(_emailController, "Email Address", Icons.email, isEmail: true),
-              const SizedBox(height: 16),
-              buildPasswordField('Password', _passwordController),
-              const SizedBox(height: 16),
-              buildPasswordField('Confirm Password', _ConfirmpasswordController, compareWith: _passwordController),
-              const SizedBox(height: 24),
-              if (_otpSent) buildOTPField(),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _isLoading ? null : sendOTP,
-                child: _isLoading ? const CircularProgressIndicator() : const Text("Send OTP"),
-              ),
-              const SizedBox(height: 12),
-              if (_otpSent)
-                ElevatedButton(
-                  onPressed: _isLoading ? null : verifyOTP,
-                  child: _isLoading ? const CircularProgressIndicator() : const Text("Verify & Continue"),
-                ),
-            ],
+  Widget buildStyledButton({
+    required String text,
+    required VoidCallback? onPressed,
+    required Color backgroundColor,
+    required Color textColor,
+    bool isLoading = false,
+  }) {
+    return Container(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: backgroundColor,
+          foregroundColor: textColor,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(25),
+          ),
+          elevation: 3,
+        ),
+        child: isLoading
+            ? SizedBox(
+          height: 20,
+          width: 20,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(textColor),
+          ),
+        )
+            : Text(
+          text,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Image.asset('Assets/Star.png', height: 100),
+        centerTitle: true,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_outlined,size: 30.0),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              children: [
+                buildTextField(_nameController, "Full Name", Icons.person),
+                const SizedBox(height: 16),
+                buildTextField(_phoneController, "Phone Number", Icons.phone,inputType: TextInputType.number),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedGender,
+                  items: ['Male', 'Female', 'Other']
+                      .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                      .toList(),
+                  onChanged: (val) => setState(() => selectedGender = val!),
+                  decoration: InputDecoration(
+                    labelText: 'Gender',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(20.0),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                buildDOBPicker(),
+                const SizedBox(height: 16),
+                buildTextField(_emailController, "Email Address", Icons.email, isEmail: true),
+                const SizedBox(height: 16),
+                buildPasswordField('Password', _passwordController),
+                const SizedBox(height: 16),
+                buildPasswordField('Confirm Password', _ConfirmpasswordController, compareWith: _passwordController),
+                const SizedBox(height: 24),
+          
+                if (_otpSent) ...[
+                  buildOTPField(),
+                  const SizedBox(height: 16),
+                ],
+          
+                if (!_otpSent)
+                  buildStyledButton(
+                    text: "Send OTP",
+                    onPressed: _isLoading ? null : sendOTP,
+                    backgroundColor: Color(0xFFFFEC3D),
+                    textColor: Colors.black,
+                    isLoading: _isLoading,
+                  ),
+          
+                if (_otpSent) ...[
+                  buildStyledButton(
+                    text: "Verify & Continue",
+                    onPressed: _isLoading ? null : verifyOTP,
+                    backgroundColor: Colors.green,
+                    textColor: Colors.white,
+                    isLoading: _isLoading,
+                  ),
+                ],
+          
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ),
+    );
+  }
 }
 
-// Skills Selection Screen
+class rules extends StatefulWidget {
+  const rules({super.key});
+
+  @override
+  State<rules> createState() => _rulesState();
+}
+
+class _rulesState extends State<rules> {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+        icon: Icon(Icons.arrow_back_ios_outlined,size: 30.0),
+    onPressed: () {
+    Navigator.pop(context);
+    }
+      ),
+      ),
+      body:Column(
+
+
+      ),
+    );
+  }
+}
+
+
 class SkillsSelectionScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
 

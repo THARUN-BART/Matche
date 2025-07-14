@@ -49,10 +49,18 @@ class SkeletonCard extends StatelessWidget {
         child: Row(
           children: [
             // Avatar skeleton
-            SkeletonLoading(
+            Container(
               width: 50,
               height: 50,
-              borderRadius: 25,
+              decoration: BoxDecoration(
+                color: Color(0xFFFFEC3D),
+                shape: BoxShape.circle,
+              ),
+              child: Shimmer.fromColors(
+                baseColor: Colors.yellow[200]!,
+                highlightColor: Colors.yellow[100]!,
+                child: Container(),
+              ),
             ),
             const SizedBox(width: 16),
             // Content skeleton
@@ -174,41 +182,60 @@ class SkeletonMatchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 160,
-      margin: const EdgeInsets.only(right: 16),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            children: [
-              // Avatar skeleton
-              SkeletonLoading(
-                width: 60,
-                height: 60,
-                borderRadius: 30,
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: const BorderSide(color: Color(0xFFFFEC3D), width: 2),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            // Avatar skeleton
+            Container(
+              width: 48,
+              height: 48,
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFEC3D),
+                shape: BoxShape.circle,
               ),
-              const SizedBox(height: 12),
-              // Name skeleton
-              SkeletonLoading(
-                width: 80,
-                height: 16,
+              child: Shimmer.fromColors(
+                baseColor: Colors.yellow,
+                highlightColor: Colors.white,
+                child: Container(),
               ),
-              const SizedBox(height: 8),
-              // Bio skeleton
-              SkeletonLoading(
-                width: 120,
-                height: 12,
+            ),
+            const SizedBox(width: 16),
+            // Name and similarity skeleton
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SkeletonLoading(width: 100, height: 16),
+                  const SizedBox(height: 8),
+                  SkeletonLoading(width: 80, height: 12),
+                ],
               ),
-              const SizedBox(height: 12),
-              // Button skeleton
-              SkeletonLoading(
-                width: double.infinity,
-                height: 32,
-                borderRadius: 16,
+            ),
+            const SizedBox(width: 16),
+            // Button skeleton
+            Container(
+              width: 80,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Color(0xFFFFEC3D),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Color(0xFFFFEC3D), width: 1.5),
               ),
-            ],
-          ),
+              child: Shimmer.fromColors(
+                baseColor: Colors.yellow,
+                highlightColor: Colors.white,
+                child: Container(),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -235,6 +262,29 @@ class SkeletonMatchList extends StatelessWidget {
           return const SkeletonMatchCard();
         },
       ),
+    );
+  }
+}
+
+class SkeletonMatchListVertical extends StatelessWidget {
+  final int itemCount;
+
+  const SkeletonMatchListVertical({
+    super.key,
+    this.itemCount = 5,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      itemCount: itemCount,
+      padding: const EdgeInsets.only(bottom: 16),
+      itemBuilder: (context, index) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: SkeletonMatchCard(),
+        );
+      },
     );
   }
 } 

@@ -12,6 +12,9 @@ class FirestoreService {
 
   /// Get current user data
   Future<DocumentSnapshot> getCurrentUserData() {
+    if (currentUserId.isEmpty) {
+      throw ArgumentError('No current user ID');
+    }
     return _firestore.collection('users').doc(currentUserId).get();
   }
 
@@ -48,6 +51,9 @@ class FirestoreService {
 
   /// Get user connections (matches)
   Stream<QuerySnapshot> getUserConnections() {
+    if (currentUserId.isEmpty) {
+      return const Stream.empty();
+    }
     return _firestore
         .collection('users')
         .doc(currentUserId)
@@ -192,6 +198,9 @@ class FirestoreService {
 
   /// Get sent connection requests (including rejected ones)
   Stream<QuerySnapshot> getSentConnectionRequests() {
+    if (currentUserId.isEmpty) {
+      return const Stream.empty();
+    }
     return _firestore
         .collection('users')
         .doc(currentUserId)

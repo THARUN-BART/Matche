@@ -77,20 +77,14 @@ class _MainNavigationState extends State<MainNavigation> {
     final notificationService = Provider.of<NotificationService>(context);
     final firestoreService = Provider.of<FirestoreService>(context, listen: false);
 
+    final userId = firestoreService.currentUserId;
     return Scaffold(
       appBar: AppBar(
         title: Image.asset('Assets/Star.png', height: 100),
         centerTitle: true,
         foregroundColor: Colors.white,
-        leading: FutureBuilder(
-          future: firestoreService.getCurrentUserData(),
-          builder: (context, snapshot) {
-            if (snapshot.hasData && snapshot.data!.exists) {
-              final userData = snapshot.data!.data() as Map<String, dynamic>;
-              final name = userData['name'] ?? 'User';
-              final firstLetter = name.isNotEmpty ? name[0].toUpperCase() : 'U';
-
-              return IconButton(
+        leading: userId.isEmpty
+            ? IconButton(
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -103,53 +97,87 @@ class _MainNavigationState extends State<MainNavigation> {
                     shape: BoxShape.circle,
                     border: Border.all(
                       color: Colors.white,
-                      width: 2,
+                      width: 2.0,
                     ),
                   ),
-                  child: CircleAvatar(
+                  child: const CircleAvatar(
                     backgroundColor: Color(0xFFFFEC3D),
-                    child: Text(
-                      firstLetter,
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
+                    child: Icon(
+                      Icons.person,
+                      color: Colors.black,
                     ),
                   ),
                 ),
                 tooltip: 'Account Info',
-              );
-            }
+              )
+            : FutureBuilder(
+                future: firestoreService.getCurrentUserData(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasData && snapshot.data!.exists) {
+                    final userData = snapshot.data!.data() as Map<String, dynamic>;
+                    final name = userData['name'] ?? 'User';
+                    final firstLetter = name.isNotEmpty ? name[0].toUpperCase() : 'U';
 
-            return IconButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const AccountInfo()),
-                );
-              },
-              icon: Container(
-                padding: EdgeInsets.all(2), // Optional: spacing between avatar and border
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white,
-                    width: 2.0,
-                  ),
-                ),
-                child: const CircleAvatar(
-                  backgroundColor: Color(0xFFFFEC3D),
-                  child: Icon(
-                    Icons.person,
-                    color: Colors.black,
-                  ),
-                ),
+                    return IconButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const AccountInfo()),
+                        );
+                      },
+                      icon: Container(
+                        padding: EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.white,
+                            width: 2,
+                          ),
+                        ),
+                        child: CircleAvatar(
+                          backgroundColor: Color(0xFFFFEC3D),
+                          child: Text(
+                            firstLetter,
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ),
+                      ),
+                      tooltip: 'Account Info',
+                    );
+                  }
+
+                  return IconButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const AccountInfo()),
+                      );
+                    },
+                    icon: Container(
+                      padding: EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white,
+                          width: 2.0,
+                        ),
+                      ),
+                      child: const CircleAvatar(
+                        backgroundColor: Color(0xFFFFEC3D),
+                        child: Icon(
+                          Icons.person,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ),
+                    tooltip: 'Account Info',
+                  );
+                },
               ),
-              tooltip: 'Account Info',
-            );
-          },
-        ),
         actions: [
           StreamBuilder(
             stream: Provider.of<FirestoreService>(context, listen: false).getUnreadNotifications(),
@@ -159,7 +187,7 @@ class _MainNavigationState extends State<MainNavigation> {
               return IconButton(
                 icon: Stack(
                   children: [
-                    const Icon(Icons.notifications, size: 30),
+                    const Icon(Icons.notifications_none_outlined, size: 30,color: Color(0xFFFFEC3D),),
                     if (unreadCount > 0)
                       Positioned(
                         right: 0,

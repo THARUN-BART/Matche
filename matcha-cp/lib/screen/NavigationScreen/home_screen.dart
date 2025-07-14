@@ -11,6 +11,7 @@ import '../../widget/skeleton_loading.dart';
 import 'group_chat_screen.dart';
 import '../../service/matching_service.dart';
 import '../account_info.dart';
+import '../best_matches_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -589,7 +590,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     children: [
                       Center(
                         child: TextButton(
-                          onPressed: () {},
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const BestMatchesScreen(),
+                              ),
+                            );
+                          },
                           style: TextButton.styleFrom(
                             backgroundColor: Color(0xFFFFEC3D),
                             foregroundColor: Colors.black,
@@ -622,179 +630,117 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                       ),
-                      SizedBox(height: 50,),
-                      // Best Peer Matches Section
-                      buildSectionHeader("Best Peer Matches", "Based on your profile and preferences"),
-                      const SizedBox(height: 12),
-                      FutureBuilder<List<Map<String, dynamic>>>(
-                        future: userId != null
-                            ? matchingService.getClusterMatches(userId, top: 5)
-                            : Future.value([]),
-                        builder: (context, snapshot) {
-                          if (snapshot.hasError) {
-                            print('Error loading peers:  [31m [1m [4m [7m [5m${snapshot.error} [0m');
-                            return const Text('Error loading peers');
-                          }
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const SkeletonMatchList(itemCount: 5);
-                          }
-                          final matches = snapshot.data ?? [];
-                          // Filter out already connected users
-                          final filteredMatches = matches.where((match) {
-                            final userId = match['uid'] as String?;
-                            return userId != null && !_connectedUserIds.contains(userId);
-                          }).toList();
-                          
-                          if (filteredMatches.isEmpty) {
-                            return const Text('No new compatible peers found.');
-                          }
-                                                      return SizedBox(
-                              height: 220,
-                              child: ListView.separated(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: filteredMatches.length,
-                              separatorBuilder: (context, index) => SizedBox(width: 16),
-                                                              itemBuilder: (context, index) {
-                                  final match = filteredMatches[index];
-                                return FutureBuilder<Map<String, dynamic>>(
-                                  future: matchingService.getUserDetails(match['uid']),
-                                  builder: (context, userSnapshot) {
-                                    if (userSnapshot.connectionState == ConnectionState.waiting) {
-                                      return SizedBox(
-                                        width: 180,
-                                        child: Card(child: Center(child: CircularProgressIndicator())),
-                                      );
+                      const SizedBox(height: 24),
+                      if (_connectedUserIds.isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Colors.white,
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              buildSectionHeader("Your Connections", "People you're connected with"),
+                              const SizedBox(height: 12),
+                              SizedBox(
+                                height: 120,
+                                child: StreamBuilder<QuerySnapshot>(
+                                  stream: firestoreService.getUserConnections(),
+                                  builder: (context, snapshot) {
+                                    if (snapshot.hasError) {
+                                      return const Text('Error loading connections');
                                     }
-                                    if (userSnapshot.hasError || userSnapshot.data == null) {
-                                      return SizedBox(
-                                        width: 180,
-                                        child: Card(child: Center(child: Text('Error'))),
-                                      );
+                                    if (snapshot.connectionState == ConnectionState.waiting) {
+                                      return const SkeletonList(itemCount: 3, itemHeight: 100);
                                     }
-                                    final user = userSnapshot.data!;
-                                    return SizedBox(
-                                      width: 180,
-                                      child: Card(
-                                        elevation: 4,
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(12.0),
-                                          child: Column(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              CircleAvatar(
-                                                backgroundColor: Colors.blueAccent,
-                                                child: Text(
-                                                  user['name']?.substring(0, 1).toUpperCase() ?? 'U',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 20,
+                                    final connections = snapshot.data?.docs ?? [];
+                                    if (connections.isEmpty) {
+                                      return const Text('No connections yet.');
+                                    }
+                                    return ListView.separated(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: connections.length,
+                                      separatorBuilder: (context, index) => const SizedBox(width: 12),
+                                      itemBuilder: (context, index) {
+                                        final connectionId = connections[index].id;
+                                        return FutureBuilder<DocumentSnapshot>(
+                                          future: firestoreService.getUserById(connectionId),
+                                          builder: (context, userSnapshot) {
+                                            if (userSnapshot.connectionState == ConnectionState.waiting) {
+                                              return SizedBox(
+                                                width: 100,
+                                                child: Card(child: Center(child: CircularProgressIndicator())),
+                                              );
+                                            }
+                                            if (userSnapshot.hasError || userSnapshot.data == null) {
+                                              return const SizedBox.shrink();
+                                            }
+                                            final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+                                            if (userData == null) return const SizedBox.shrink();
+
+                                            return SizedBox(
+                                              width: 100,
+                                              child: Card(
+                                                elevation: 2,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(16),
+                                                  side: BorderSide(color: Colors.transparent, width: 3),
+                                                ),
+                                                child: InkWell(
+                                                  onTap: () => _openChatWithUser(
+                                                    connectionId,
+                                                    userData['name'] ?? 'Unknown',
+                                                  ),
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.all(8.0),
+                                                    child: Column(
+                                                      mainAxisAlignment: MainAxisAlignment.center,
+                                                      children: [
+                                                        CircleAvatar(
+                                                          backgroundColor: Colors.green.shade100,
+                                                          child: Text(
+                                                            (userData['name'] ?? 'U').substring(0, 1).toUpperCase(),
+                                                            style: TextStyle(
+                                                              color: Colors.green.shade700,
+                                                              fontWeight: FontWeight.bold,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(height: 4),
+                                                        Text(
+                                                          userData['name'] ?? 'Unknown',
+                                                          style: const TextStyle(
+                                                            fontSize: 12,
+                                                            fontWeight: FontWeight.w500,
+                                                          ),
+                                                          textAlign: TextAlign.center,
+                                                          maxLines: 2,
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                      ],
+                                                    ),
                                                   ),
                                                 ),
                                               ),
-                                              Text(user['name'] ?? 'Unknown', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                              SizedBox(height: 8),
-                                              Text('Similarity: ${match['similarity']}%', style: TextStyle(color: Colors.grey[700])),
-                                              SizedBox(height: 8),
-                                              _buildConnectionButton(user['uid'] ?? '', user['name'] ?? 'Unknown'),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
+                                            );
+                                          },
+                                        );
+                                      },
                                     );
                                   },
-                                );
-                              },
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 24),
-                      // Connected Users Section
-                      if (_connectedUserIds.isNotEmpty) ...[
-                        buildSectionHeader("Your Connections", "People you're connected with"),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          height: 120,
-                          child: StreamBuilder<QuerySnapshot>(
-                            stream: firestoreService.getUserConnections(),
-                            builder: (context, snapshot) {
-                              if (snapshot.hasError) {
-                                return const Text('Error loading connections');
-                              }
-                              if (snapshot.connectionState == ConnectionState.waiting) {
-                                return const SkeletonList(itemCount: 3, itemHeight: 100);
-                              }
-                              final connections = snapshot.data?.docs ?? [];
-                              if (connections.isEmpty) {
-                                return const Text('No connections yet.');
-                              }
-                              return ListView.separated(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: connections.length,
-                                separatorBuilder: (context, index) => const SizedBox(width: 12),
-                                itemBuilder: (context, index) {
-                                  final connectionId = connections[index].id;
-                                  return FutureBuilder<DocumentSnapshot>(
-                                    future: firestoreService.getUserById(connectionId),
-                                    builder: (context, userSnapshot) {
-                                      if (userSnapshot.connectionState == ConnectionState.waiting) {
-                                        return SizedBox(
-                                          width: 100,
-                                          child: Card(child: Center(child: CircularProgressIndicator())),
-                                        );
-                                      }
-                                      if (userSnapshot.hasError || userSnapshot.data == null) {
-                                        return const SizedBox.shrink();
-                                      }
-                                      final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
-                                      if (userData == null) return const SizedBox.shrink();
-                                      
-                                      return SizedBox(
-                                        width: 100,
-                                        child: Card(
-                                          elevation: 2,
-                                          child: InkWell(
-                                            onTap: () => _openChatWithUser(connectionId, userData['name'] ?? 'Unknown'),
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(8.0),
-                                              child: Column(
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: [
-                                                  CircleAvatar(
-                                                    backgroundColor: Colors.green.shade100,
-                                                    child: Text(
-                                                      (userData['name'] ?? 'U').substring(0, 1).toUpperCase(),
-                                                      style: TextStyle(
-                                                        color: Colors.green.shade700,
-                                                        fontWeight: FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  const SizedBox(height: 4),
-                                                  Text(
-                                                    userData['name'] ?? 'Unknown',
-                                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-                                                    textAlign: TextAlign.center,
-                                                    maxLines: 2,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  );
-                                },
-                              );
-                            },
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 24),
                       ],
-                      // Group Management Section
+
+
                       buildSectionHeader("Your Groups", "Study groups and projects"),
                       const SizedBox(height: 12),
                       StreamBuilder<List<Map<String, dynamic>>>(

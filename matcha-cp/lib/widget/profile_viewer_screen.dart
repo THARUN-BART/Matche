@@ -17,9 +17,9 @@ class ProfileViewScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Profile Picture
             Center(
               child: CircleAvatar(
+                backgroundColor: Color(0xFFFFEC3D),
                 radius: 60,
                 backgroundImage: user['avatarUrl'] != null
                     ? NetworkImage(user['avatarUrl'])
@@ -27,7 +27,7 @@ class ProfileViewScreen extends StatelessWidget {
                 child: user['avatarUrl'] == null 
                     ? Text(
                         (user['name'] ?? 'U')[0].toUpperCase(),
-                        style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
+                        style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold,color: Colors.black),
                       ) 
                     : null,
               ),
@@ -124,28 +124,6 @@ class ProfileViewScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
             ],
-            
-            // Contact Button
-            Center(
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  // TODO: Implement chat functionality
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Chat functionality coming soon!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.chat),
-                label: const Text('Start Chat'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                ),
-              ),
-            ),
           ],
         ),
       ),

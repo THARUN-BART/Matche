@@ -29,7 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _fetchUserData() async {
     final user = _auth.currentUser;
-    if (user == null) return;
+    if (user == null || user.uid.isEmpty) return;
 
     try {
       final snap = await _firestore.collection("users").doc(user.uid).get();
@@ -46,7 +46,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _updateSetting(String key, dynamic value) async {
     final user = _auth.currentUser;
-    if (user == null) return;
+    if (user == null || user.uid.isEmpty) return;
 
     try {
       await _firestore.collection("users").doc(user.uid).update({
@@ -65,6 +65,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showSnackBar(String message, Color color) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -180,11 +181,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         () => _showChangePasswordDialog(),
       ),
       _buildSettingsItem(
-        "Delete Account", 
-        Icons.delete_forever, 
-        () => _showDeleteAccountDialog(),
-      ),
-      _buildSettingsItem(
         "Logout", 
         Icons.logout, 
         () => _showLogoutConfirmationDialog(),
@@ -260,7 +256,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         userData: _userData ?? {},
         onSave: (aboutData) async {
           final user = _auth.currentUser;
-          if (user == null) return;
+          if (user == null || user.uid.isEmpty) return;
           try {
             await _firestore.collection("users").doc(user.uid).update(aboutData);
             setState(() {
@@ -395,7 +391,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _testBackgroundNotification() async {
     try {
       final user = _auth.currentUser;
-      if (user == null) {
+      if (user == null || user.uid.isEmpty) {
         _showSnackBar('User not logged in', Colors.red);
         return;
       }
@@ -516,40 +512,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showDeleteAccountDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Account'),
-        content: const Text('Are you sure you want to delete your account? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _showSnackBar('Account deletion coming soon!', Colors.orange);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   Future<void> _logout() async {
     try {
       await _auth.signOut();
-      if (context.mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const welcome_page()),
-          (route) => false,
-        );
-      }
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const welcome_page()),
+        (route) => false,
+      );
     } catch (e) {
       _showSnackBar('Error logging out: $e', Colors.red);
     }
@@ -650,13 +623,16 @@ class _AboutMyselfDialogState extends State<AboutMyselfDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel',style: TextStyle(color: Colors.white),)),
         ElevatedButton(
+          style: ElevatedButton.styleFrom(
+          backgroundColor: Color(0xFFFFEC3D),
+    ),
           onPressed: () {
             widget.onSave({'big5': _big5});
             Navigator.pop(context);
           },
-          child: const Text('Save'),
+          child: const Text('Save',style: TextStyle(color: Colors.black),),
         ),
       ],
     );
@@ -666,6 +642,7 @@ class _AboutMyselfDialogState extends State<AboutMyselfDialog> {
 class _BigFiveQuiz extends StatefulWidget {
   final Map<String, double> initial;
   final void Function(Map<String, double>) onChanged;
+
   const _BigFiveQuiz({required this.initial, required this.onChanged});
 
   @override
@@ -674,6 +651,7 @@ class _BigFiveQuiz extends StatefulWidget {
 
 class _BigFiveQuizState extends State<_BigFiveQuiz> {
   late Map<String, int> _ratings;
+
   final List<Map<String, String>> _questions = [
     {'key': 'O', 'text': 'I am Full of Ideas', 'left': 'Disagree', 'right': 'Agree'},
     {'key': 'C', 'text': 'I follow a schedule', 'left': 'Disagree', 'right': 'Agree'},
@@ -694,48 +672,57 @@ class _BigFiveQuizState extends State<_BigFiveQuiz> {
   @override
   Widget build(BuildContext context) {
     return Column(
-      children: _questions.map((q) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(q['text']!, style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  Text(q['left']!, style: const TextStyle(fontSize: 12)),
-                  const SizedBox(width: 8),
-                  ...List.generate(5, (i) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                    child: ChoiceChip(
-                      label: Text(
-                        '${i + 1}',
-                        style: TextStyle(
-                          color: _ratings[q['key']] == i + 1 ? Colors.black : Colors.white,
+      children: _questions.map((q) {
+        final key = q['key']!;
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(q['text']!, style: const TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(q['left']!, style: const TextStyle(fontSize: 12)),
+                    const SizedBox(width: 8),
+                    ...List.generate(5, (i) {
+                      final isSelected = _ratings[key] == i + 1;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                        child: ChoiceChip(
+                          label: Text(
+                            '${i + 1}',
+                            style: TextStyle(
+                              color: isSelected ? Colors.black : Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          selected: isSelected,
+                          selectedColor: const Color(0xFFFFEC3D),
+                          onSelected: (_) {
+                            setState(() {
+                              _ratings[key] = i + 1;
+                              widget.onChanged(_ratings.map((k, v) => MapEntry(k, (v - 1) / 4)));
+                            });
+                          },
+                          avatar: isSelected
+                              ? const Icon(Icons.check, color: Colors.black, size: 16)
+                              : null,
                         ),
-                      ),
-
-                      selected: _ratings[q['key']] == i + 1,
-                      selectedColor: Color(0xFFFFEC3D),
-                      onSelected: (selected) {
-                        setState(() {
-                          _ratings[q['key']!] = i + 1;
-                          widget.onChanged(_ratings.map((k, v) => MapEntry(k, (v - 1) / 4)));
-                        });
-                      },
-                    ),
-                  )),
-                  const SizedBox(width: 8),
-                  Text(q['right']!, style: const TextStyle(fontSize: 12,color: Colors.black)),
-                ],
+                      );
+                    }),
+                    const SizedBox(width: 12),
+                    Text(q['right']!, style: const TextStyle(fontSize: 12, color: Colors.white)),
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
-      )).toList(),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 }
-

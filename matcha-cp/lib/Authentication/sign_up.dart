@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:email_otp/email_otp.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:matcha/Authentication/interests_selection.dart';
 import 'package:matcha/screen/main_navigation.dart';
 import 'package:matcha/service/notification_service.dart';
 import '../constants/Constant.dart';
@@ -91,12 +92,10 @@ class _SignupState extends State<Signup> {
       _isEmailLocked = false;
       _otpSent = false;
       _otpController.clear();
-    });
-    _countdownTimer?.cancel();
-    setState(() {
       _canResendOTP = true;
       _countdownSeconds = 0;
     });
+    _countdownTimer?.cancel();
   }
 
   Future<void> _storeFCMTokenForNewUser(String userId) async {
@@ -248,12 +247,13 @@ class _SignupState extends State<Signup> {
           borderRadius: BorderRadius.circular(25.0),
         ),
         prefixIcon: Icon(icon),
-        suffixIcon: isEmail && _isEmailLocked ?
-        IconButton(
-          icon: Icon(Icons.edit, color: Colors.blue),
-          onPressed: _enableEmailEdit,
-          tooltip: 'Edit Email',
-        ) : null,
+        suffixIcon: isEmail && _isEmailLocked
+            ? IconButton(
+                icon: Icon(Icons.edit, color: Colors.blue),
+                onPressed: _enableEmailEdit,
+                tooltip: 'Edit Email',
+              )
+            : null,
       ),
       validator: (v) {
         if (v == null || v.trim().isEmpty) return "Enter $label";
@@ -513,11 +513,10 @@ class _SignupState extends State<Signup> {
   }
 }
 
-// Fixed RulesScreen class with proper userData handling
 class RulesScreen extends StatefulWidget {
-  final Map<String, dynamic> userData; // Add this parameter
+  final Map<String, dynamic> userData;
 
-  const RulesScreen({super.key, required this.userData}); // Make it required
+  const RulesScreen({super.key, required this.userData});
 
   @override
   State<RulesScreen> createState() => _RulesScreenState();
@@ -607,28 +606,42 @@ class _RulesScreenState extends State<RulesScreen> {
                   Navigator.pushReplacement(
                     context,
                     MaterialPageRoute(
-                      builder: (_) => SkillsSelectionScreen(userData: widget.userData), // Use widget.userData
+                      builder: (context) =>
+                          SkillsSelectionScreen(userData: widget.userData),
                     ),
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFFEC3D),
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  padding: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(25),
                   ),
                   elevation: 0,
                 ),
-                child: const Text(
-                  'I AGREE',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                child: Ink(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.black, Color(0xFFFFEC3D)],
+                      begin: Alignment.centerRight,
+                      end: Alignment.bottomCenter,
+                    ),
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'I AGREE',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+            )
           ],
         ),
       ),
@@ -756,7 +769,7 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
       }
     } catch (e) {
       print('Error storing FCM token for new user: $e');
-      // Don't throw error to avoid blocking signup process
+
     }
   }
 
@@ -775,10 +788,11 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
       await _firestore.collection("users").doc(userData['uid']).set(userData);
 
       // Navigate to home page
-      Navigator.pushAndRemoveUntil(
+      Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const MainNavigation()),
-            (route) => false,
+        MaterialPageRoute(
+          builder: (_) => InterestsSelectionScreen(userData: userData),
+        ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -793,7 +807,6 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Save user data without skills
       final userData = Map<String, dynamic>.from(widget.userData);
       userData['skills'] = <String>[];
 
@@ -820,127 +833,134 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Add Skills", style: GoogleFonts.salsa(fontSize: 24, color: Colors.black)),
+        title: Image.asset('Assets/Star.png', height: 100),
         centerTitle: true,
         automaticallyImplyLeading: false,
       ),
-      body: Column(
+      body: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "What skills do you have?",
-                  style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "Add skills to help others find you (optional)",
-                  style: GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: "Search skills...",
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "SKILLS",
+                      style: TextStyle(
+                          color: Color(0xFFFFEC3D),
+                          fontSize: 30,
+                          fontWeight: FontWeight.bold),
                     ),
-                    filled: true,
-                    fillColor: Colors.grey[50],
-                  ),
+                    Text(
+                      "What skills do you have?",
+                      style: GoogleFonts.inter(
+                          fontSize: 18, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      "Add skills to help others find you",
+                      style: GoogleFonts.inter(
+                          fontSize: 14, color: Colors.grey[600]),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: "Search skills...",
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: Colors.transparent,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    if (selectedSkills.isNotEmpty) ...[
+                      Text(
+                        "Selected Skills (${selectedSkills.length})",
+                        style: GoogleFonts.inter(
+                            fontSize: 16, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: selectedSkills
+                            .map(
+                              (skill) => Chip(
+                            label: Text(skill,
+                                style: const TextStyle(color: Colors.black)),
+                            backgroundColor: Color(0xFFFFEC3D),
+                            deleteIcon: const Icon(Icons.close,
+                                color: Colors.black, size: 16),
+                            onDeleted: () => _toggleSkill(skill),
+                          ),
+                        )
+                            .toList(),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ],
                 ),
-                const SizedBox(height: 16),
-                if (selectedSkills.isNotEmpty) ...[
-                  Text(
-                    "Selected Skills (${selectedSkills.length})",
-                    style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: selectedSkills.map((skill) => Chip(
-                      label: Text(skill, style: const TextStyle(color: Colors.white)),
-                      backgroundColor: Colors.blue,
-                      deleteIcon: const Icon(Icons.close, color: Colors.white, size: 16),
-                      onDeleted: () => _toggleSkill(skill),
-                    )).toList(),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: filteredSkills.length,
-              itemBuilder: (context, index) {
-                final skill = filteredSkills[index];
-                final isSelected = selectedSkills.contains(skill);
+              ),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: filteredSkills.length,
+                  itemBuilder: (context, index) {
+                    final skill = filteredSkills[index];
+                    final isSelected = selectedSkills.contains(skill);
 
-                return Card(
-                  elevation: 0,
-                  margin: const EdgeInsets.only(bottom: 8),
-                  child: ListTile(
-                    title: Text(skill),
-                    trailing: Icon(
-                      isSelected ? Icons.check_circle : Icons.add_circle_outline,
-                      color: isSelected ? Colors.green : Colors.grey,
-                    ),
-                    onTap: () => _toggleSkill(skill),
-                    selected: isSelected,
-                    selectedTileColor: Colors.blue.shade50,
-                  ),
+                    return Card(
+                      elevation: 0,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        shape: RoundedRectangleBorder(
+                          side: BorderSide(color: Color(0xFFFFEC3D), width: 2),
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        title: Text(skill),
+                        trailing: Icon(
+                          isSelected
+                              ? Icons.check_circle
+                              : Icons.add_circle_outline,
+                          color: isSelected ? Colors.green : Colors.grey,
+                        ),
+                        onTap: () => _toggleSkill(skill),
+                        selected: isSelected,
+
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 80), // Spacer for button
+            ],
+          ),
+          Positioned(
+            bottom: 20,
+            left: 16,
+            right: 16,
+            child: ElevatedButton(
+              onPressed: () {
+                final userData = Map<String, dynamic>.from(widget.userData);
+                userData['skills'] = selectedSkills;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => InterestsSelectionScreen(userData: userData)),
                 );
               },
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
-                  spreadRadius: 1,
-                  blurRadius: 5,
-                  offset: const Offset(0, -3),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _isLoading ? null : _skipToHome,
-                    child: _isLoading
-                        ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                        : const Text("Skip"),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _saveAndContinue,
-                    child: _isLoading
-                        ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                        : Text("Continue${selectedSkills.isNotEmpty ? ' (${selectedSkills.length})' : ''}"),
-                  ),
-                ),
-              ],
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFFFFEC3D),
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text("CONTINUE 2/5"),
             ),
           ),
         ],
@@ -948,3 +968,5 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
     );
   }
 }
+
+

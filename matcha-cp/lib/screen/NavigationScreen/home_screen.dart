@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../../service/firestore_service.dart';
 import '../../service/group_service.dart';
@@ -586,6 +587,42 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Center(
+                        child: TextButton(
+                          onPressed: () {},
+                          style: TextButton.styleFrom(
+                            backgroundColor: Color(0xFFFFEC3D),
+                            foregroundColor: Colors.black,
+                            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(40),
+                              side: BorderSide(
+                                color: Colors.white,
+                                width: 5,
+                              ),
+                            ),
+                            elevation: 4,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                "Find my Best Matches ",
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              SvgPicture.asset(
+                                'Assets/match.svg',
+                                height: 50,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 50,),
                       // Best Peer Matches Section
                       buildSectionHeader("Best Peer Matches", "Based on your profile and preferences"),
                       const SizedBox(height: 12),

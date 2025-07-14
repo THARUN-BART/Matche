@@ -37,6 +37,11 @@ class _AccountInfoState extends State<AccountInfo> {
   List<String> _userSkills = [];
   List<String> _filteredSkills = [];
 
+  // Add temp variables for edit mode
+  List<String> _tempInterests = [];
+  List<String> _tempSkills = [];
+  Map<String, List<String>> _tempAvailability = {};
+
   @override
   void initState() {
     super.initState();
@@ -88,7 +93,6 @@ class _AccountInfoState extends State<AccountInfo> {
           _phoneController.text = _userData?['phone'] ?? "";
           _selectedGender = _userData?['gender'];
 
-          // Handle DOB - convert from Timestamp or String
           if (_userData?['dob'] != null) {
             if (_userData!['dob'] is Timestamp) {
               _selectedDOB = (_userData!['dob'] as Timestamp).toDate();
@@ -188,10 +192,27 @@ class _AccountInfoState extends State<AccountInfo> {
     }
   }
 
+  void _enterEditMode() {
+    setState(() {
+      _isEditMode = true;
+      _tempInterests = List<String>.from(interests);
+      _tempSkills = List<String>.from(_userSkills);
+      _tempAvailability = {for (var e in availability.entries) e.key: List<String>.from(e.value)};
+    });
+  }
+
+  void _cancelEditMode() {
+    setState(() {
+      _isEditMode = false;
+      interests = List<String>.from(_tempInterests);
+      _userSkills = List<String>.from(_tempSkills);
+      availability = {for (var e in _tempAvailability.entries) e.key: List<String>.from(e.value)};
+    });
+  }
 
   Widget buildDetail({required IconData icon, required String title, required String? value}) {
     return ListTile(
-      leading: Icon(icon, color: Colors.deepPurple),
+      leading: Icon(icon, color:Color(0xFFFFEC3D)),
       title: Text(title),
       subtitle: Text(value ?? "Not provided"),
     );
@@ -204,7 +225,7 @@ class _AccountInfoState extends State<AccountInfo> {
         children: [
           const Divider(height: 32),
           ListTile(
-            leading: const Icon(Icons.schedule, color: Colors.deepPurple),
+            leading: const Icon(Icons.schedule, color: Color(0xFFFFEC3D)),
             title: const Text("Available Timings"),
             subtitle: Text("${availability.values.fold(0, (sum, slots) => sum + slots.length)} slots selected"),
           ),
@@ -248,8 +269,8 @@ class _AccountInfoState extends State<AccountInfo> {
                   const SizedBox(),
                   ...timeSlots.map((slot) => Container(
                     padding: const EdgeInsets.all(8),
-                    color: Colors.blue.shade50,
-                    child: Text(slot, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    color: Color(0xFFFFEC3D),
+                    child: Text(slot, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold,color: Colors.black)),
                   )),
                 ],
               ),
@@ -257,8 +278,8 @@ class _AccountInfoState extends State<AccountInfo> {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
-                    color: Colors.blue.shade50,
-                    child: Text(day, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    color: Color(0xFFFFEC3D),
+                    child: Text(day, style: const TextStyle(fontWeight: FontWeight.bold,color: Colors.black)),
                   ),
                   ...timeSlots.map((slot) {
                     final isSelected = availability[day]?.contains(slot) ?? false;
@@ -287,13 +308,14 @@ class _AccountInfoState extends State<AccountInfo> {
   }
 
   Widget buildInterestsSection(bool editable) {
+    final editList = editable ? _tempInterests : interests;
     if (!editable) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Divider(height: 32),
           ListTile(
-            leading: const Icon(Icons.favorite, color: Colors.deepPurple),
+            leading: const Icon(Icons.favorite, color: Color(0xFFFFEC3D)),
             title: const Text("Interests"),
             subtitle: Text(interests.isEmpty ? "No interests added" : "${interests.length} interests"),
           ),
@@ -305,7 +327,7 @@ class _AccountInfoState extends State<AccountInfo> {
                 runSpacing: 4,
                 children: interests.map((interest) => Chip(
                   label: Text(interest, style: const TextStyle(fontSize: 12)),
-                  backgroundColor: Colors.deepPurple.shade100,
+                  backgroundColor: Color(0xFFFFEC3D),
                   labelStyle: TextStyle(color: Colors.deepPurple.shade800),
                 )).toList(),
               ),
@@ -323,9 +345,9 @@ class _AccountInfoState extends State<AccountInfo> {
           children: [
             const Text("Your Interests", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             TextButton.icon(
-              onPressed: _showIntrestDialog,
-              icon: const Icon(Icons.add),
-              label: const Text("Add Interests"),
+              onPressed: () => _showIntrestDialog(editable: true),
+              icon: const Icon(Icons.add,color: Color(0xFFFFEC3D),),
+              label: const Text("Add Interests",style: TextStyle(color: Color(0xFFFFEC3D)),),
             ),
           ],
         ),
@@ -333,12 +355,12 @@ class _AccountInfoState extends State<AccountInfo> {
         Wrap(
           spacing: 8,
           runSpacing: 4,
-          children: interests.map((interest) => Chip(
+          children: editList.map((interest) => Chip(
             label: Text(interest),
-            backgroundColor: Colors.deepPurple.shade100,
-            labelStyle: TextStyle(color: Colors.deepPurple.shade800),
-            deleteIcon: const Icon(Icons.close),
-            onDeleted: () => setState(() => interests.remove(interest)),
+            backgroundColor: Color(0xFFFFEC3D),
+            labelStyle: TextStyle(color: Colors.black),
+            deleteIcon: const Icon(Icons.close,color: Colors.black,),
+            onDeleted: () => setState(() => editList.remove(interest)),
           )).toList(),
         ),
       ],
@@ -346,13 +368,14 @@ class _AccountInfoState extends State<AccountInfo> {
   }
 
   Widget buildSkillsSection(bool editable) {
+    final editList = editable ? _tempSkills : _userSkills;
     if (!editable) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Divider(height: 32),
           ListTile(
-            leading: const Icon(Icons.star, color: Colors.deepPurple),
+            leading: const Icon(Icons.star, color: Color(0xFFFFEC3D)),
             title: const Text("Skills"),
             subtitle: Text(_userSkills.isEmpty ? "No skills added" : "${_userSkills.length} skills"),
           ),
@@ -364,7 +387,7 @@ class _AccountInfoState extends State<AccountInfo> {
                 runSpacing: 4,
                 children: _userSkills.map((skill) => Chip(
                   label: Text(skill, style: const TextStyle(fontSize: 12)),
-                  backgroundColor: Colors.blue.shade100,
+                  backgroundColor: Color(0xFFFFEC3D),
                   labelStyle: TextStyle(color: Colors.blue.shade800),
                 )).toList(),
               ),
@@ -382,9 +405,9 @@ class _AccountInfoState extends State<AccountInfo> {
           children: [
             const Text("Your Skills", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             TextButton.icon(
-              onPressed: _showSkillsDialog,
-              icon: const Icon(Icons.add),
-              label: const Text("Manage Skills"),
+              onPressed: () => _showSkillsDialog(editable: true),
+              icon: const Icon(Icons.add,color: Color(0xFFFFEC3D),),
+              label: const Text("Manage Skills",style: TextStyle(color: Color(0xFFFFEC3D)),),
             ),
           ],
         ),
@@ -392,20 +415,20 @@ class _AccountInfoState extends State<AccountInfo> {
         Wrap(
           spacing: 8,
           runSpacing: 4,
-          children: _userSkills.map((skill) => Chip(
+          children: editList.map((skill) => Chip(
             label: Text(skill),
-            backgroundColor: Colors.blue.shade100,
-            labelStyle: TextStyle(color: Colors.blue.shade800),
-            deleteIcon: const Icon(Icons.close),
-            onDeleted: () => setState(() => _userSkills.remove(skill)),
+            backgroundColor: Color(0xFFFFEC3D),
+            labelStyle: TextStyle(color: Colors.black),
+            deleteIcon: const Icon(Icons.close,color: Colors.black,),
+            onDeleted: () => setState(() => editList.remove(skill)),
           )).toList(),
         ),
       ],
     );
   }
 
-  void _showSkillsDialog() {
-    List<String> tempSkills = List.from(_userSkills);
+  void _showSkillsDialog({bool editable = false}) {
+    List<String> tempSkills = editable ? List.from(_tempSkills) : List.from(_userSkills);
 
     showDialog(
       context: context,
@@ -426,7 +449,7 @@ class _AccountInfoState extends State<AccountInfo> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     filled: true,
-                    fillColor: Colors.grey[50],
+                    fillColor: Colors.transparent,
                   ),
                   onChanged: (value) {
                     setDialogState(() {
@@ -451,8 +474,8 @@ class _AccountInfoState extends State<AccountInfo> {
                         spacing: 8,
                         runSpacing: 4,
                         children: tempSkills.map((skill) => Chip(
-                          label: Text(skill, style: const TextStyle(color: Colors.white, fontSize: 12)),
-                          backgroundColor: Colors.blue,
+                          label: Text(skill, style: const TextStyle(color: Colors.black, fontSize: 12)),
+                          backgroundColor: Color(0xFFFFEC3D),
                           deleteIcon: const Icon(Icons.close, color: Colors.white, size: 16),
                           onDeleted: () {
                             setDialogState(() {
@@ -493,7 +516,7 @@ class _AccountInfoState extends State<AccountInfo> {
                             });
                           },
                           selected: isSelected,
-                          selectedTileColor: Colors.blue.shade50,
+                          selectedTileColor: Colors.transparent,
                         ),
                       );
                     },
@@ -508,17 +531,24 @@ class _AccountInfoState extends State<AccountInfo> {
                 _skillSearchController.clear();
                 Navigator.pop(context);
               },
-              child: const Text("Cancel"),
+              child: const Text("Cancel",style: TextStyle(color: Colors.white),),
             ),
             ElevatedButton(
               onPressed: () {
                 setState(() {
-                  _userSkills = tempSkills;
+                  if (editable) {
+                    _tempSkills = tempSkills;
+                  } else {
+                    _userSkills = tempSkills;
+                  }
                 });
                 _skillSearchController.clear();
                 Navigator.pop(context);
               },
-              child: const Text("Save"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFFFFEC3D)
+              ),
+              child: const Text("Save",style: TextStyle(color: Colors.black),),
             ),
           ],
         ),
@@ -526,8 +556,8 @@ class _AccountInfoState extends State<AccountInfo> {
     );
   }
 
-  void _showIntrestDialog() {
-    List<String> tempInterests = List.from(interests);
+  void _showIntrestDialog({bool editable = false}) {
+    List<String> tempInterests = editable ? List.from(_tempInterests) : List.from(interests);
 
     showDialog(
       context: context,
@@ -548,7 +578,7 @@ class _AccountInfoState extends State<AccountInfo> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     filled: true,
-                    fillColor: Colors.grey[50],
+                    fillColor: Colors.transparent,
                   ),
                   onChanged: (value) {
                     setDialogState(() {
@@ -573,9 +603,9 @@ class _AccountInfoState extends State<AccountInfo> {
                         spacing: 8,
                         runSpacing: 4,
                         children: tempInterests.map((interest) => Chip(
-                          label: Text(interest, style: const TextStyle(color: Colors.white, fontSize: 12)),
-                          backgroundColor: Colors.deepPurple,
-                          deleteIcon: const Icon(Icons.close, color: Colors.white, size: 16),
+                          label: Text(interest, style: const TextStyle(color: Colors.black, fontSize: 12)),
+                          backgroundColor: Color(0xFFFFEC3D),
+                          deleteIcon: const Icon(Icons.close, color: Colors.black, size: 16),
                           onDeleted: () {
                             setDialogState(() {
                               tempInterests.remove(interest);
@@ -615,7 +645,7 @@ class _AccountInfoState extends State<AccountInfo> {
                             });
                           },
                           selected: isSelected,
-                          selectedTileColor: Colors.deepPurple.shade50,
+                          selectedTileColor: Colors.transparent,
                         ),
                       );
                     },
@@ -630,17 +660,26 @@ class _AccountInfoState extends State<AccountInfo> {
                 _interestController.clear();
                 Navigator.pop(context);
               },
-              child: const Text("Cancel"),
+              child: const Text("Cancel",style: TextStyle(color: Colors.white),),
             ),
             ElevatedButton(
               onPressed: () {
                 setState(() {
-                  interests = tempInterests;
+                  if (editable) {
+                    _tempInterests = tempInterests;
+                  } else {
+                    interests = tempInterests;
+                  }
                 });
                 _interestController.clear();
                 Navigator.pop(context);
               },
-              child: const Text("Save"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Color(0xFFFFEC3D)
+              ),
+
+
+              child: const Text("Save",style: TextStyle(color: Colors.black),),
             ),
           ],
         ),
@@ -678,12 +717,12 @@ class _AccountInfoState extends State<AccountInfo> {
                 children: [
                   CircleAvatar(
                     radius: 40,
-                    backgroundColor: Colors.deepPurple,
+                    backgroundColor: Color(0xFFFFEC3D),
                     child: Text(
                       _userData?['name'] != null && (_userData?['name'] as String).isNotEmpty
                           ? (_userData!['name'] as String)[0].toUpperCase()
                           : "?",
-                      style: const TextStyle(color: Colors.white, fontSize: 32),
+                      style: const TextStyle(color: Colors.black, fontSize: 32),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -715,7 +754,7 @@ class _AccountInfoState extends State<AccountInfo> {
               const SizedBox(height: 24),
               Center(
                 child: ElevatedButton.icon(
-                  onPressed: () => setState(() => _isEditMode = true),
+                  onPressed: _enterEditMode,
                   icon: const Icon(Icons.edit),
                   label: const Text("Edit Profile"),
                   style: ElevatedButton.styleFrom(
@@ -785,17 +824,24 @@ class _AccountInfoState extends State<AccountInfo> {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   ElevatedButton.icon(
-                    onPressed: _saveUserProfile,
+                    onPressed: () {
+                      setState(() {
+                        interests = List<String>.from(_tempInterests);
+                        _userSkills = List<String>.from(_tempSkills);
+                        availability = {for (var e in _tempAvailability.entries) e.key: List<String>.from(e.value)};
+                      });
+                      _saveUserProfile();
+                    },
                     icon: const Icon(Icons.save),
                     label: const Text("Save Changes"),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
+                      backgroundColor: Color(0xFFFFEC3D),
+                      foregroundColor: Colors.black,
                     ),
                   ),
                   TextButton(
-                    onPressed: () => setState(() => _isEditMode = false),
-                    child: const Text("Cancel"),
+                    onPressed: _cancelEditMode,
+                    child: const Text("Cancel",style: TextStyle(color:Colors.white),),
                   ),
                 ],
               ),

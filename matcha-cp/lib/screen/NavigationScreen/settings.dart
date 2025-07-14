@@ -117,8 +117,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ),
       _buildSettingsItem(
-        "About Myself",
-        Icons.person,
+        "Personality Assessment",
+        Icons.assignment_ind_outlined,
         () => _showAboutMyselfDialog(),
       ),
     ]);
@@ -634,7 +634,7 @@ class _AboutMyselfDialogState extends State<AboutMyselfDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('About Myself'),
+      title: const Text('Personality'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -710,8 +710,15 @@ class _BigFiveQuizState extends State<_BigFiveQuiz> {
                   ...List.generate(5, (i) => Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4.0),
                     child: ChoiceChip(
-                      label: Text('${i + 1}'),
+                      label: Text(
+                        '${i + 1}',
+                        style: TextStyle(
+                          color: _ratings[q['key']] == i + 1 ? Colors.black : Colors.white,
+                        ),
+                      ),
+
                       selected: _ratings[q['key']] == i + 1,
+                      selectedColor: Color(0xFFFFEC3D),
                       onSelected: (selected) {
                         setState(() {
                           _ratings[q['key']!] = i + 1;
@@ -721,7 +728,7 @@ class _BigFiveQuizState extends State<_BigFiveQuiz> {
                     ),
                   )),
                   const SizedBox(width: 8),
-                  Text(q['right']!, style: const TextStyle(fontSize: 12)),
+                  Text(q['right']!, style: const TextStyle(fontSize: 12,color: Colors.black)),
                 ],
               ),
             ),

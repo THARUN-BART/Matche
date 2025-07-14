@@ -208,8 +208,9 @@ class _SignupState extends State<Signup> {
         password: _passwordController.text.trim(),
       );
       await _storeFCMTokenForNewUser(userCred.user!.uid);
-      
-      userData = {
+
+      // Create userData map here, before using it
+      final Map<String, dynamic> userData = {
         "name": _nameController.text.trim(),
         "phone": _phoneController.text.trim(),
         "email": _emailController.text.trim(),
@@ -219,13 +220,16 @@ class _SignupState extends State<Signup> {
         "uid": userCred.user!.uid,
       };
 
+      // Store it in instance variable for later use if needed
+      this.userData = userData;
+
       setState(() => _isLoading = false);
 
-      // Navigate to skills selection screen
+      // Now pass the userData to RulesScreen
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => SkillsSelectionScreen(userData: userData!),
+          builder: (context) => RulesScreen(userData: userData),
         ),
       );
     } catch (e) {
@@ -509,29 +513,168 @@ class _SignupState extends State<Signup> {
   }
 }
 
-class rules extends StatefulWidget {
-  const rules({super.key});
+// Fixed RulesScreen class with proper userData handling
+class RulesScreen extends StatefulWidget {
+  final Map<String, dynamic> userData; // Add this parameter
+
+  const RulesScreen({super.key, required this.userData}); // Make it required
 
   @override
-  State<rules> createState() => _rulesState();
+  State<RulesScreen> createState() => _RulesScreenState();
 }
 
-class _rulesState extends State<rules> {
+class _RulesScreenState extends State<RulesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
+        title: Image.asset('Assets/Star.png', height: 100),
+        centerTitle: true,
         leading: IconButton(
-        icon: Icon(Icons.arrow_back_ios_outlined,size: 30.0),
-    onPressed: () {
-    Navigator.pop(context);
-    }
+          icon: const Icon(
+            Icons.arrow_back_ios_outlined,
+            size: 30.0,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+        elevation: 0,
       ),
-      ),
-      body:Column(
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Column(
+                children: [
+                  const Text(
+                    'Welcome to Matche.',
+                    style: TextStyle(
+                      color: Color(0xFFFFEC3D),
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Adhere to these rules to continue.',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 40),
 
+            // Rules list
+            Expanded(
+              child: Column(
+                children: [
+                  _buildRuleItem(
+                    'Be honest.',
+                    'Fill out the Questions honestly to find your best match peer.',
+                  ),
+                  const SizedBox(height: 30),
+                  _buildRuleItem(
+                    'Stay safe.',
+                    'All your Chats are monitored to protect you.',
+                  ),
+                  const SizedBox(height: 30),
+                  _buildRuleItem(
+                    'Chill out.',
+                    'Respect others and treat them as you would like to be treated.',
+                  ),
+                  const SizedBox(height: 30),
+                  _buildRuleItem(
+                    'Provide Feedback.',
+                    'Your valuable feedback enhances your experience.',
+                  ),
+                ],
+              ),
+            ),
 
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.only(bottom: 30),
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SkillsSelectionScreen(userData: widget.userData), // Use widget.userData
+                    ),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFEC3D),
+                  foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  'I AGREE',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  Widget _buildRuleItem(String title, String description) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Check icon
+        Container(
+          margin: const EdgeInsets.only(top: 2),
+          child: const Icon(
+            Icons.check,
+            color: Color(0xFFFFEC3D),
+            size: 20,
+          ),
+        ),
+        const SizedBox(width: 15),
+        // Text content
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  color: Color(0xFFFFEC3D),
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                description,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

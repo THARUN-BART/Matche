@@ -97,14 +97,24 @@ class _MainNavigationState extends State<MainNavigation> {
                     MaterialPageRoute(builder: (context) => const AccountInfo()),
                   );
                 },
-                icon: CircleAvatar(
-                  backgroundColor: Color(0xFFFFEC3D),
-                  child: Text(
-                    firstLetter,
-                    style: const TextStyle(
-                      color: Colors.black,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
+                icon: Container(
+                  padding: EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white,
+                      width: 2,
+                    ),
+                  ),
+                  child: CircleAvatar(
+                    backgroundColor: Color(0xFFFFEC3D),
+                    child: Text(
+                      firstLetter,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
                     ),
                   ),
                 ),
@@ -112,7 +122,6 @@ class _MainNavigationState extends State<MainNavigation> {
               );
             }
 
-            // Loading state or fallback
             return IconButton(
               onPressed: () {
                 Navigator.push(
@@ -120,11 +129,21 @@ class _MainNavigationState extends State<MainNavigation> {
                   MaterialPageRoute(builder: (context) => const AccountInfo()),
                 );
               },
-              icon: const CircleAvatar(
-                backgroundColor: Color(0xFFFFEC3D),
-                child: Icon(
-                  Icons.person,
-                  color: Colors.black,
+              icon: Container(
+                padding: EdgeInsets.all(2), // Optional: spacing between avatar and border
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white,
+                    width: 2.0,
+                  ),
+                ),
+                child: const CircleAvatar(
+                  backgroundColor: Color(0xFFFFEC3D),
+                  child: Icon(
+                    Icons.person,
+                    color: Colors.black,
+                  ),
                 ),
               ),
               tooltip: 'Account Info',

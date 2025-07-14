@@ -71,8 +71,8 @@ class _ConnectionCardState extends State<ConnectionCard> {
         elevation: 3,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25),
           side: BorderSide(
-          color: Color(0xFFFFEC3D), // You can customize color
-          width: 1.2,           // Adjust thickness as needed
+          color: Color(0xFFFFEC3D),
+          width: 1.2,
         ),
       ),
         margin: const EdgeInsets.only(bottom: 16),

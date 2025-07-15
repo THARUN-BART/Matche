@@ -88,8 +88,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Check Interests
     final hasInterests = (data['interests'] is List && (data['interests'] as List).isNotEmpty);
     if (!hasInterests) missingSections.add('Interests');
-    
-    // Check Availability
+
     final hasAvailability = data['availability'] != null && 
                            data['availability'].toString().isNotEmpty &&
                            data['availability'] != '[]';
@@ -570,7 +569,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final userId = firestoreService.currentUserId;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Home', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Home', style: TextStyle(fontWeight: FontWeight.bold,color: Color(0xFFFFEC3D))),
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.transparent,
@@ -780,12 +779,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateGroupDialog(context),
-        icon: const Icon(Icons.group_add),
-        label: const Text('Create Group'),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-      ),
     );
   }
 
@@ -907,129 +900,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showCreateGroupDialog(BuildContext context) {
-    final nameCtrl = TextEditingController();
-    final descCtrl = TextEditingController();
-    final categoryCtrl = TextEditingController();
-    final maxMembersCtrl = TextEditingController(text: '10');
-    final skillsCtrl = TextEditingController();
-    final groupService = Provider.of<GroupService>(context, listen: false);
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Create Study Group"),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Group Name',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(30)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: descCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(30)),
-                  ),
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: categoryCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Category (e.g., Study, Project, Research)',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(30)),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: maxMembersCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Max Members',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(30)),
-                  ),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: skillsCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Skills (comma-separated)',
-                  hintText: 'e.g., Python, Math, Design',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(30)),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-          ElevatedButton(
-            onPressed: () async {
-              if (nameCtrl.text.isEmpty || descCtrl.text.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please fill in all required fields')),
-                );
-                return;
-              }
-
-              try {
-                final skills = skillsCtrl.text
-                    .split(',')
-                    .map((s) => s.trim())
-                    .where((s) => s.isNotEmpty)
-                    .toList();
-
-                await groupService.createGroup(
-                  name: nameCtrl.text,
-                  description: descCtrl.text,
-                  skills: skills,
-                  category: categoryCtrl.text.isEmpty ? 'General' : categoryCtrl.text,
-                  maxMembers: int.tryParse(maxMembersCtrl.text) ?? 10,
-                );
-
-                if (context.mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Group created successfully!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error creating group: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            child: const Text("Create"),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _connectWithPeer(BuildContext context, String userId) {
     final firestoreService = Provider.of<FirestoreService>(context, listen: false);

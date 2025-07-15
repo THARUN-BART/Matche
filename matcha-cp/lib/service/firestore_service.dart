@@ -401,7 +401,7 @@ class FirestoreService {
         .snapshots();
   }
 
-  /// Search users by name or email
+  /// Search users by name, email, or username
   Future<List<Map<String, dynamic>>> searchUsers(String query) async {
     try {
       if (query.trim().isEmpty) {
@@ -426,6 +426,14 @@ class FirestoreService {
           .limit(10)
           .get();
 
+      // Search by username
+      final usernameQuery = await _firestore
+          .collection('users')
+          .where('username', isGreaterThanOrEqualTo: queryLower)
+          .where('username', isLessThan: queryLower + '\uf8ff')
+          .limit(10)
+          .get();
+
       // Combine and deduplicate results
       final allDocs = <String, DocumentSnapshot>{};
 
@@ -436,6 +444,12 @@ class FirestoreService {
       }
 
       for (var doc in emailQuery.docs) {
+        if (doc.id != currentUserId && doc.exists) {
+          allDocs[doc.id] = doc;
+        }
+      }
+
+      for (var doc in usernameQuery.docs) {
         if (doc.id != currentUserId && doc.exists) {
           allDocs[doc.id] = doc;
         }

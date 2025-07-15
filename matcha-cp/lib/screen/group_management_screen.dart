@@ -55,8 +55,6 @@ class _GroupManagementScreenState extends State<GroupManagementScreen> with Sing
     return Scaffold(
       appBar: AppBar(
         title: Text('Manage ${widget.group['name']}'),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
         bottom: TabBar(
           controller: _tabController,
           tabs: const [
@@ -64,8 +62,8 @@ class _GroupManagementScreenState extends State<GroupManagementScreen> with Sing
             Tab(text: 'Invite'),
             Tab(text: 'Settings'),
           ],
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
+          indicatorColor: Color(0xFFFFEC3D),
+          labelColor: Color(0xFFFFEC3D),
           unselectedLabelColor: Colors.white70,
         ),
       ),
@@ -167,80 +165,7 @@ class _GroupManagementScreenState extends State<GroupManagementScreen> with Sing
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Join Code Section
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Join Code',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  if (_joinCode != null) ...[
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey[300]!),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              _joinCode!,
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 2,
-                              ),
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: _copyJoinCode,
-                            icon: const Icon(Icons.copy),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: _generateNewJoinCode,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue,
-                              foregroundColor: Colors.white,
-                            ),
-                            child: const Text('Generate New Code'),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: _toggleJoinCode,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: _joinCodeEnabled ? Colors.orange : Colors.green,
-                              foregroundColor: Colors.white,
-                            ),
-                            child: Text(_joinCodeEnabled ? 'Disable' : 'Enable'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ] else ...[
-                    const Text('Loading join code...'),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          
+
           // Invite Users Section
           Card(
             child: Padding(
@@ -273,108 +198,7 @@ class _GroupManagementScreenState extends State<GroupManagementScreen> with Sing
           ),
           const SizedBox(height: 24),
           
-          // Quick Join Section
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Quick Join',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Share this code with others to let them join directly',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton.icon(
-                    onPressed: _shareJoinCode,
-                    icon: const Icon(Icons.share),
-                    label: const Text('Share Join Code'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          // Invite by Email Section
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Invite by Email',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Send an invitation to join this group by email.',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _emailController,
-                          decoration: const InputDecoration(
-                            labelText: 'Email',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.all(Radius.circular(30)),
-                            ),
-                            isDense: true,
-                          ),
-                          keyboardType: TextInputType.emailAddress,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: ElevatedButton(
-                          onPressed: () async {
-                            final email = _emailController.text.trim();
-                            if (email.isEmpty) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Please enter an email address')),
-                              );
-                              return;
-                            }
-                            try {
-                              final groupService = Provider.of<GroupService>(context, listen: false);
-                              await groupService.sendGroupInviteByEmail(widget.groupId, email);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Invitation sent to $email')),
-                              );
-                              _emailController.clear();
-                            } catch (e) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Failed to send invite: $e')),
-                              );
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                          ),
-                          child: const Text('Send Invite'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+
         ],
       ),
     );
@@ -592,26 +416,44 @@ class _GroupManagementScreenState extends State<GroupManagementScreen> with Sing
             children: [
               TextField(
                 controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Group Name'),
+                decoration: const InputDecoration(
+                  labelText: 'Group Name',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: descCtrl,
-                decoration: const InputDecoration(labelText: 'Description'),
+                decoration: const InputDecoration(
+                  labelText: 'Description',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                  ),
+                ),
                 maxLines: 3,
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: memberCountCtrl,
-                decoration: const InputDecoration(labelText: 'Max Members'),
+                decoration: const InputDecoration(
+                  labelText: 'Max Members',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(16)),
+                  ),
+                ),
                 keyboardType: TextInputType.number,
               ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel',style: TextStyle(color:Colors.white),)),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+    backgroundColor: Color(0xFFFFEC3D)
+    ),
             onPressed: () async {
               await Provider.of<GroupService>(context, listen: false).updateGroup(
                 groupId: widget.groupId,
@@ -620,9 +462,9 @@ class _GroupManagementScreenState extends State<GroupManagementScreen> with Sing
                 maxMembers: int.tryParse(memberCountCtrl.text) ?? 10,
               );
               Navigator.pop(context);
-              setState(() {}); // Refresh group info
+              setState(() {});
             },
-            child: const Text('Save'),
+            child: const Text('Save',style: TextStyle(color: Colors.black),),
           ),
         ],
       ),
@@ -673,7 +515,7 @@ class _GroupManagementScreenState extends State<GroupManagementScreen> with Sing
   }
 }
 
-// User Search Screen for inviting users
+
 class UserSearchScreen extends StatefulWidget {
   final String groupId;
 
@@ -688,6 +530,7 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
   final TextEditingController _messageController = TextEditingController();
   List<Map<String, dynamic>> _searchResults = [];
   bool _isSearching = false;
+  List<String> _invitedUserIds = [];
 
   @override
   void dispose() {
@@ -701,8 +544,9 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Invite Users'),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        leading: IconButton(onPressed: (){
+          Navigator.pop(context);
+        }, icon: Icon(Icons.arrow_back_ios)),
       ),
       body: Column(
         children: [
@@ -743,25 +587,36 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
   }
 
   Widget _buildUserCard(Map<String, dynamic> user) {
+    final isInvited = _invitedUserIds.contains(user['id']);
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: CircleAvatar(
+          backgroundColor: Color(0xFFFFEC3D),
           backgroundImage: user['avatarUrl'] != null ? NetworkImage(user['avatarUrl']) : null,
           child: user['avatarUrl'] == null
-              ? Text((user['name'] as String).isNotEmpty ? user['name'][0].toUpperCase() : '?')
+              ? Text((user['name'] as String).isNotEmpty ? user['name'][0].toUpperCase() : '?',style: TextStyle(color: Colors.black),)
               : null,
         ),
         title: Text(user['name'] ?? 'Unknown'),
         subtitle: Text(user['email'] ?? ''),
-        trailing: ElevatedButton(
-          onPressed: () => _showInviteDialog(user),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('Invite'),
-        ),
+        trailing: isInvited
+            ? ElevatedButton(
+                onPressed: null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.grey,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Invited'),
+              )
+            : ElevatedButton(
+                onPressed: () => _showInviteDialog(user),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Invite'),
+              ),
       ),
     );
   }
@@ -776,10 +631,13 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
 
     try {
       final firestoreService = Provider.of<FirestoreService>(context, listen: false);
+      final groupService = Provider.of<GroupService>(context, listen: false);
       final results = await firestoreService.searchUsers(query);
-      
+      // Fetch invited user IDs for this group
+      final invitedUserIds = await groupService.getInvitedUserIds(widget.groupId);
       setState(() {
         _searchResults = results;
+        _invitedUserIds = invitedUserIds;
         _isSearching = false;
       });
     } catch (e) {
@@ -839,6 +697,9 @@ class _UserSearchScreenState extends State<UserSearchScreen> {
       Navigator.pop(context); // Close dialog
 
       if (success) {
+        setState(() {
+          _invitedUserIds.add(user['id']);
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Invitation sent to ${user['name']}')),
         );

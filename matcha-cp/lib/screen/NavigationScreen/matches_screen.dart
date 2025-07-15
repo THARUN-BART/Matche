@@ -66,7 +66,6 @@ class _MatchesScreenState extends State<MatchesScreen>
   Future<void> _fetchConnectionsAndRequests() async {
     final firestoreService = Provider.of<FirestoreService>(context, listen: false);
 
-    // Listen to connections with proper subscription management
     final connectionsSubscription = firestoreService.getUserConnections().listen((snapshot) {
       if (mounted) {
         setState(() {
@@ -120,7 +119,7 @@ class _MatchesScreenState extends State<MatchesScreen>
       appBar: AppBar(
         title: const Text(
           'Connections',
-          style: TextStyle(fontWeight: FontWeight.bold),
+          style: TextStyle(fontWeight: FontWeight.bold,color: Color(0xFFFFEC3D)),
         ),
         centerTitle: true,
         bottom: TabBar(

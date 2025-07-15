@@ -867,4 +867,14 @@ class GroupService {
       'timestamp': FieldValue.serverTimestamp(),
     });
   }
+
+  // Get list of user IDs who have a pending invitation for this group
+  Future<List<String>> getInvitedUserIds(String groupId) async {
+    final snapshot = await _firestore
+        .collection('group_invitations')
+        .where('groupId', isEqualTo: groupId)
+        .where('status', isEqualTo: 'pending')
+        .get();
+    return snapshot.docs.map((doc) => doc['invitedTo'] as String).toList();
+  }
 }

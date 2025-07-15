@@ -26,9 +26,10 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.group['name']),
-        backgroundColor: Colors.deepPurple,
-        foregroundColor: Colors.white,
+        title: Text(widget.group['name'],style: TextStyle(color: Color(0xFFFFEC3D),fontWeight: FontWeight.bold),),
+        leading: IconButton(onPressed: (){
+          Navigator.pop(context);
+        }, icon: Icon(Icons.arrow_back_ios)),
         actions: [
           IconButton(
             icon: const Icon(Icons.info),
@@ -146,7 +147,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.2),
@@ -160,14 +160,14 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
         children: [
           Expanded(
             child: TextField(
-              controller: _messageController,
+              controller: _messageController,style: TextStyle(color: Colors.black),
               decoration: InputDecoration(
                 hintText: 'Type a message...',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(25),
                   borderSide: BorderSide.none,
                 ),
-                fillColor: Colors.grey[100],
+                fillColor: Colors.white,
                 filled: true,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
               ),
@@ -176,9 +176,9 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
           ),
           const SizedBox(width: 8),
           CircleAvatar(
-            backgroundColor: Colors.deepPurple,
+            backgroundColor: Color(0xFFFFEC3D),
             child: IconButton(
-              icon: const Icon(Icons.send, color: Colors.white),
+              icon: const Icon(Icons.send, color: Colors.black),
               onPressed: () {
                 if (_messageController.text.isNotEmpty) {
                   FirebaseFirestore.instance
@@ -236,7 +236,8 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                       final member = doc.data() as Map<String, dynamic>;
                       return ListTile(
                         leading: CircleAvatar(
-                          child: Text(member['name'][0]),
+                          backgroundColor: Color(0xFFFFEC3D),
+                          child: Text(member['name'][0],style: TextStyle(color: Colors.black),),
                         ),
                         title: Text(member['name']),
                       );
@@ -249,7 +250,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Close"),
+            child: const Text("Close",style: TextStyle(color: Colors.white),),
           ),
         ],
       ),

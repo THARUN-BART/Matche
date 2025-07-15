@@ -256,7 +256,10 @@ class _AccountInfoState extends State<AccountInfo> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 24),
-        const Text("Available to connect with peers", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        const Text(
+          "Available to connect with peers",
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 12),
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
@@ -270,7 +273,14 @@ class _AccountInfoState extends State<AccountInfo> {
                   ...timeSlots.map((slot) => Container(
                     padding: const EdgeInsets.all(8),
                     color: Color(0xFFFFEC3D),
-                    child: Text(slot, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold,color: Colors.black)),
+                    child: Text(
+                      slot,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
                   )),
                 ],
               ),
@@ -279,23 +289,34 @@ class _AccountInfoState extends State<AccountInfo> {
                   Container(
                     padding: const EdgeInsets.all(8),
                     color: Color(0xFFFFEC3D),
-                    child: Text(day, style: const TextStyle(fontWeight: FontWeight.bold,color: Colors.black)),
+                    child: Text(
+                      day,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
                   ),
                   ...timeSlots.map((slot) {
                     final isSelected = availability[day]?.contains(slot) ?? false;
-                    return Checkbox(
-                      value: isSelected,
-                      onChanged: (value) {
-                        setState(() {
-                          final slots = availability[day] ?? [];
-                          if (value == true) {
-                            if (!slots.contains(slot)) slots.add(slot);
-                          } else {
-                            slots.remove(slot);
-                          }
-                          availability[day] = slots;
-                        });
-                      },
+                    return Container(
+                      padding: const EdgeInsets.all(4),
+                      child: Checkbox(
+                        value: isSelected,
+                        checkColor: Colors.black,
+                        activeColor: Color(0xFFFFEC3D),
+                        onChanged: (value) {
+                          setState(() {
+                            final slots = availability[day] ?? [];
+                            if (value == true) {
+                              if (!slots.contains(slot)) slots.add(slot);
+                            } else {
+                              slots.remove(slot);
+                            }
+                            availability[day] = slots;
+                          });
+                        },
+                      ),
                     );
                   }).toList(),
                 ],

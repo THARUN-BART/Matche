@@ -24,7 +24,11 @@ class GroupCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Color(0xFFFFEC3D),
+          width: 2,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.grey.withOpacity(0.1),
@@ -49,7 +53,7 @@ class GroupCard extends StatelessWidget {
                   height: 56,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Colors.green, Colors.greenAccent],
+                      colors: [Color(0xFFFFEC3D), Colors.yellowAccent],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -65,7 +69,7 @@ class GroupCard extends StatelessWidget {
                   ),
                   child: const Icon(
                     Icons.group,
-                    color: Colors.white,
+                    color: Colors.black,
                     size: 28,
                   ),
                 ),
@@ -92,9 +96,9 @@ class GroupCard extends StatelessWidget {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [Colors.orange, Colors.orangeAccent],
-                                ),
+
+                                  color: Color(0xFFFFEC3D),
+
                                 borderRadius: BorderRadius.circular(12),
                                 boxShadow: [
                                   BoxShadow(
@@ -109,7 +113,7 @@ class GroupCard extends StatelessWidget {
                                 'Admin',
                                 style: TextStyle(
                                   fontSize: 10,
-                                  color: Colors.white,
+                                  color: Colors.black,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -157,19 +161,23 @@ class GroupCard extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: Colors.green[50],
+                              color: Colors.transparent,
                               borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Colors.black,
+                                width: 1,
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.people, size: 14, color: Colors.green[600]),
+                                Icon(Icons.people, size: 14, color: Colors.black),
                                 const SizedBox(width: 4),
                                 Text(
                                   '$membersCount/$maxMembers',
                                   style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.green[700],
+                                    color: Colors.black,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -187,10 +195,10 @@ class GroupCard extends StatelessWidget {
                             return Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color: Colors.green[50],
+                                color: Color(0xFFFFEC3D),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: Colors.green[200]!,
+                                  color: Color(0xFFFFEC3D),
                                   width: 1,
                                 ),
                               ),
@@ -198,7 +206,7 @@ class GroupCard extends StatelessWidget {
                                 skill,
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: Colors.green[700],
+                                  color: Colors.black,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),

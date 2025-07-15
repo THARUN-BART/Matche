@@ -12,8 +12,8 @@ class GroupInvitationsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Group Invitations'),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        backgroundColor: Color(0xFFFFEC3D),
+        foregroundColor: Colors.black,
       ),
       body: StreamBuilder<List<Map<String, dynamic>>>(
         stream: groupService.getUserInvitations(),

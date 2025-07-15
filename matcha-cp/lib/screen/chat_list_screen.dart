@@ -448,7 +448,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('Chat cleared successfully'),
-                      backgroundColor: Colors.green,
+                      backgroundColor: Color(0xFFFFEC3D),
                       behavior: SnackBarBehavior.floating,
                     ),
                   );
@@ -789,8 +789,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Create Group'),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        backgroundColor: Color(0xFFFFEC3D),
+        foregroundColor: Colors.black,
         actions: [
           TextButton(
             onPressed: _isLoading ? null : _createGroup,
@@ -798,11 +798,11 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
                 ? const SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
                   )
                 : const Text(
                     'Create',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
                   ),
           ),
         ],
@@ -935,7 +935,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Group created successfully!'),
-            backgroundColor: Colors.green,
+            backgroundColor: Color(0xFFFFEC3D),
           ),
         );
       }
@@ -1189,7 +1189,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : const Icon(Icons.send),
-                  color: Colors.green,
+                  color: Color(0xFFFFEC3D),
                 ),
               ],
             ),

@@ -43,6 +43,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
           style: TextStyle(
             fontWeight: FontWeight.bold,
             fontSize: 24,
+            color: Color(0xFFFFEC3D)
           ),
         ),
         centerTitle: true,
@@ -50,9 +51,9 @@ class _ChatListScreenState extends State<ChatListScreen> {
       body: _buildGroupChats(),
       floatingActionButton: FloatingActionButton(
         onPressed: _showNewChatOptions,
-        backgroundColor: Colors.green,
+        backgroundColor: Color(0xFFFFEC3D),
         elevation: 8,
-        child: const Icon(Icons.chat, color: Colors.white, size: 28),
+        child: const Icon(Icons.chat, color: Colors.black, size: 28),
       ),
     );
   }
@@ -115,7 +116,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+            valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFEC3D)),
           ),
           SizedBox(height: 16),
           Text(
@@ -174,7 +175,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
             icon: const Icon(Icons.refresh),
             label: const Text('Retry'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
+              backgroundColor: Color(0xFFFFEC3D),
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
@@ -237,8 +238,8 @@ class _ChatListScreenState extends State<ChatListScreen> {
             icon: const Icon(Icons.add),
             label: Text(actionText),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
+              backgroundColor: Color(0xFFFFEC3D),
+              foregroundColor: Colors.black,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -256,7 +257,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         decoration: const BoxDecoration(
-          color: Colors.white,
+          color: Colors.grey,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: Column(
@@ -314,10 +315,10 @@ class _ChatListScreenState extends State<ChatListScreen> {
       leading: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.green[50],
+          color: Color(0xFFFFEC3D),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, color: Colors.green, size: 24),
+        child: Icon(icon, color: Colors.black, size: 24),
       ),
       title: Text(
         title,
@@ -329,7 +330,7 @@ class _ChatListScreenState extends State<ChatListScreen> {
       subtitle: Text(
         subtitle,
         style: TextStyle(
-          color: Colors.grey[600],
+          color: Colors.grey,
           fontSize: 14,
         ),
       ),

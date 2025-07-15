@@ -77,8 +77,9 @@ flutter:
      - Assets/IC.png
      - Assets/Main_IC.png
      - Assets/Star.png
-     - Assets/match.svg
      - Assets/Group.svg
+     - Assets/match.svg
+
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

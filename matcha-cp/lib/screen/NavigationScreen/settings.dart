@@ -81,7 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return Scaffold(
         appBar: AppBar(
           title: const Text('Settings'),
-          backgroundColor: Colors.green,
+          backgroundColor: Colors.black,
           foregroundColor: Colors.white,
         ),
         body: const Center(child: CircularProgressIndicator()),
@@ -205,7 +205,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.green,
+              color: Color(0xFFFFEC3D),
             ),
           ),
         ),
@@ -222,7 +222,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return ListTile(
       leading: Icon(
         icon,
-        color: isDestructive ? Colors.red : Colors.green,
+        color: isDestructive ? Colors.red : Color(0xFFFFEC3D),
       ),
       title: Text(
         title,

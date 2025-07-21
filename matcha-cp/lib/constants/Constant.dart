@@ -1,3 +1,4 @@
+// SKILLS
 final List<String> allSkills = [
   // Programming Languages
   'JavaScript', 'Python', 'Java', 'C++', 'C#', 'TypeScript', 'PHP', 'Ruby', 'Go', 'Rust',
@@ -43,6 +44,7 @@ final List<String> allSkills = [
   'Technical Writing', 'API Development', 'Microservices'
 ];
 
+//Interest
 final List<String> allInterestOptions = [
   "Reading Books",
   "Cricket",
@@ -55,3 +57,5 @@ final List<String> allInterestOptions = [
   "Dancing",
   "Drawing",
 ];
+
+const String backendBaseUrl = 'https://backend-u5oi.onrender.com';

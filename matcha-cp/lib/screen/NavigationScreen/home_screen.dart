@@ -700,11 +700,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                                       mainAxisAlignment: MainAxisAlignment.center,
                                                       children: [
                                                         CircleAvatar(
-                                                          backgroundColor: Colors.green.shade100,
+                                                          backgroundColor: Color(0xFFFFEC3D),
                                                           child: Text(
                                                             (userData['name'] ?? 'U').substring(0, 1).toUpperCase(),
                                                             style: TextStyle(
-                                                              color: Colors.green.shade700,
+                                                              color: Colors.black,
                                                               fontWeight: FontWeight.bold,
                                                             ),
                                                           ),

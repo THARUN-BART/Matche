@@ -63,5 +63,10 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT"/>
             </intent-filter>
         </service>
+
+        <!-- OneSignal App ID -->
+        <meta-data
+            android:name="onesignal_app_id"
+            android:value="8021659f-9f75-426b-8b81-6656c45b229a" />
     </application>
 </manifest>

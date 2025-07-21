@@ -44,6 +44,14 @@ class _AvailabilitySelectionScreenState
 
   Future<void> _saveAndContinue() async {
     setState(() => _isLoading = true);
+    final hasAnySlot = availability.values.any((slots) => slots.isNotEmpty);
+    if (!hasAnySlot) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Please select at least one available time slot."), backgroundColor: Colors.red),
+      );
+      setState(() => _isLoading = false);
+      return;
+    }
     try {
       final userData = Map<String, dynamic>.from(widget.userData);
       userData['availability'] = availability;

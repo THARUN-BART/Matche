@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../service/notification_service.dart';
 
 class NotificationTestWidget extends StatefulWidget {
   const NotificationTestWidget({super.key});
@@ -11,6 +13,8 @@ class NotificationTestWidget extends StatefulWidget {
 
 class _NotificationTestWidgetState extends State<NotificationTestWidget> {
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+  final NotificationService _notificationService = NotificationService();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
   @override
   void initState() {
@@ -126,124 +130,98 @@ class _NotificationTestWidgetState extends State<NotificationTestWidget> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Notification Test'),
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.blue,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Test Notifications',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-            
-            // Connection Request Test
+            // Manual notification test button
             ElevatedButton(
-              onPressed: () => _showTestNotification(
-                'connection_request',
-                'New Connection Request',
-                'John Doe wants to connect with you!',
-                {
-                  'type': 'connection_request',
-                  'userId': 'user123',
-                  'userName': 'John Doe',
-                },
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: const Text('Test Connection Request'),
-            ),
-            
-            const SizedBox(height: 12),
-            
-            // Group Invite Test
-            ElevatedButton(
-              onPressed: () => _showTestNotification(
-                'group_invite',
-                'Group Invitation',
-                'You\'ve been invited to join "Study Group Alpha"',
-                {
-                  'type': 'group_invite',
-                  'groupId': 'group456',
-                  'groupName': 'Study Group Alpha',
-                },
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: const Text('Test Group Invite'),
-            ),
-            
-            const SizedBox(height: 12),
-            
-            // New Message Test
-            ElevatedButton(
-              onPressed: () => _showTestNotification(
-                'new_message',
-                'New Message',
-                'Alice: Hey, how\'s the project going?',
-                {
-                  'type': 'new_message',
-                  'chatId': 'chat789',
-                  'senderName': 'Alice',
-                  'message': 'Hey, how\'s the project going?',
-                },
-              ),
+              onPressed: _sendManualNotification,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.green,
-                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              child: const Text('Test New Message'),
-            ),
-            
-            const SizedBox(height: 12),
-            
-            // General Notification Test
-            ElevatedButton(
-              onPressed: () => _showTestNotification(
-                'general',
-                'General Update',
-                'Your profile has been updated successfully!',
-                {
-                  'type': 'general',
-                  'action': 'profile_update',
-                },
+              child: const Text(
+                'Send Manual Notification (Backend)',
+                style: TextStyle(fontSize: 16, color: Colors.white),
               ),
+            ),
+            const SizedBox(height: 16),
+            // Test local notifications
+            ElevatedButton(
+              onPressed: () => _showTestNotification('connection_request', 'Connection Request', 'You have a new connection request!', {'type': 'connection_request'}),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: const Text(
+                'Test Connection Request',
+                style: TextStyle(fontSize: 16, color: Colors.white),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => _showTestNotification('group_invite', 'Group Invitation', 'You have been invited to join a group!', {'type': 'group_invite'}),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: const Text(
+                'Test Group Invitation',
+                style: TextStyle(fontSize: 16, color: Colors.white),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => _showTestNotification('new_message', 'New Message', 'You have a new message!', {'type': 'new_message', 'chatId': 'chat123'}),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.purple,
-                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              child: const Text('Test General Notification'),
-            ),
-            
-            const SizedBox(height: 20),
-            
-            const Text(
-              'Instructions:',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              '1. Tap any test button to send a local notification\n'
-              '2. The notification will appear in your notification tray\n'
-              '3. Tap the notification to see how navigation would work\n'
-              '4. Check the console for notification data logs',
-              style: TextStyle(fontSize: 14),
+              child: const Text(
+                'Test New Message',
+                style: TextStyle(fontSize: 16, color: Colors.white),
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  // Send manual notification using backend
+  Future<void> _sendManualNotification() async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in first')),
+      );
+      return;
+    }
+    
+    try {
+      await _notificationService.sendManualNotification(
+        userId: user.uid,
+        title: 'Manual Test Notification',
+        message: 'This is a test notification sent from the Flutter app!',
+      );
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Manual notification sent! Check your device.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 } 

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:matcha/service/notification_service.dart';
 import 'package:matcha/screen/main_navigation.dart';
+import 'package:matcha/Authentication/username_selection.dart';
 
 class BigFiveSelectionScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -24,10 +25,19 @@ class _BigFiveSelectionScreenState extends State<BigFiveSelectionScreen> {
       userData['big5'] = _big5;
       await NotificationService().storeTokenAfterLogin(userData['uid']);
       await _firestore.collection("users").doc(userData['uid']).set(userData, SetOptions(merge: true));
-      Navigator.pushAndRemoveUntil(
+      Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const MainNavigation()),
-            (route) => false,
+        MaterialPageRoute(
+          builder: (_) => UsernameSelectionScreen(
+            onUsernameSet: () {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (_) => const MainNavigation()),
+                (route) => false,
+              );
+            },
+          ),
+        ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

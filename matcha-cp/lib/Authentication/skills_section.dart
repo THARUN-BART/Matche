@@ -62,6 +62,14 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
   Future<void> _saveAndContinue() async {
     setState(() => _isLoading = true);
 
+    if (selectedSkills.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Please select at least one skill."), backgroundColor: Colors.red),
+      );
+      setState(() => _isLoading = false);
+      return;
+    }
+
     try {
       // Add skills to user data
       final userData = Map<String, dynamic>.from(widget.userData);

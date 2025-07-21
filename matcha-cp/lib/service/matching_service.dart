@@ -4,7 +4,8 @@ import 'package:http/http.dart' as http;
 class MatchingService {
   final String apiBaseUrl;
 
-  MatchingService({required this.apiBaseUrl});
+  // Default to Render backend URL if not provided
+  MatchingService({String? apiBaseUrl}) : apiBaseUrl = apiBaseUrl ?? 'https://backend-u5oi.onrender.com';
 
   // Get cluster matches: returns a list of maps with uid and similarity
   Future<List<Map<String, dynamic>>> getClusterMatches(String userId, {int top = 5}) async {

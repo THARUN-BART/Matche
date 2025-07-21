@@ -12,37 +12,60 @@ import 'package:matcha/service/group_service.dart';
 import 'package:matcha/service/realtime_chat_service.dart';
 import 'package:matcha/splash_screen.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+Future<void> initializeFirebaseIfNeeded() async {
+  try {
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      print('Firebase initialized successfully');
+    } else {
+      print('Firebase already initialized');
+      // Optionally, you can get the default app to ensure it's working
+      Firebase.app();
+    }
+  } catch (e) {
+    print('Error initializing Firebase: $e');
+    // Handle specific Firebase initialization errors
+    if (e.toString().contains('duplicate-app')) {
+      print('Firebase app already exists, continuing...');
+      // This is not necessarily an error, just log and continue
+    } else {
+      // Re-throw other errors as they might be critical
+      rethrow;
+    }
+  }
+}
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  if (Firebase.apps.isEmpty) {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  }
+  try {
+    await initializeFirebaseIfNeeded();
 
-  // Initialize Firebase Realtime Database
-  FirebaseDatabase.instance.databaseURL = 'https://matche-39f37-default-rtdb.firebaseio.com';
-  
-  print('Handling a background message: ${message.messageId}');
-  print('Message data: ${message.data}');
-  print('Message notification: ${message.notification?.title}');
-  
-  // Show local notification for background messages
-  await _showBackgroundNotification(message);
+    // Set Firebase Database URL if not already set
+    if (FirebaseDatabase.instance.databaseURL == null) {
+      FirebaseDatabase.instance.databaseURL = 'https://matche-39f37-default-rtdb.firebaseio.com';
+    }
+
+    print('Handling a background message: ${message.messageId}');
+    print('Message data: ${message.data}');
+    print('Message notification: ${message.notification?.title}');
+
+    await _showBackgroundNotification(message);
+  } catch (e) {
+    print('Error in background message handler: $e');
+  }
 }
 
-// Show notification when app is in background
 @pragma('vm:entry-point')
 Future<void> _showBackgroundNotification(RemoteMessage message) async {
   try {
-    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-        FlutterLocalNotificationsPlugin();
+    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
-    const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-
-    const DarwinInitializationSettings initializationSettingsIOS =
-        DarwinInitializationSettings(
+    const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true,
@@ -55,8 +78,7 @@ Future<void> _showBackgroundNotification(RemoteMessage message) async {
 
     await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
-    const AndroidNotificationDetails androidPlatformChannelSpecifics =
-        AndroidNotificationDetails(
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'matcha_notifications',
       'Matcha Notifications',
       channelDescription: 'Notifications for Matcha app',
@@ -67,23 +89,22 @@ Future<void> _showBackgroundNotification(RemoteMessage message) async {
       playSound: true,
     );
 
-    const DarwinNotificationDetails iOSPlatformChannelSpecifics =
-        DarwinNotificationDetails(
+    const DarwinNotificationDetails iOSDetails = DarwinNotificationDetails(
       presentAlert: true,
       presentBadge: true,
       presentSound: true,
     );
 
-    const NotificationDetails platformChannelSpecifics = NotificationDetails(
-      android: androidPlatformChannelSpecifics,
-      iOS: iOSPlatformChannelSpecifics,
+    const NotificationDetails platformDetails = NotificationDetails(
+      android: androidDetails,
+      iOS: iOSDetails,
     );
 
     await flutterLocalNotificationsPlugin.show(
       message.hashCode,
       message.notification?.title ?? 'New Message',
       message.notification?.body ?? 'You have a new message',
-      platformChannelSpecifics,
+      platformDetails,
       payload: json.encode(message.data),
     );
   } catch (e) {
@@ -92,52 +113,58 @@ Future<void> _showBackgroundNotification(RemoteMessage message) async {
 }
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
   try {
-    if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    }
-    
-    // Initialize Firebase Realtime Database
+    WidgetsFlutterBinding.ensureInitialized();
+
+    // Initialize Firebase with error handling
+    await initializeFirebaseIfNeeded();
+
+    // Set Firebase Database URL
     FirebaseDatabase.instance.databaseURL = 'https://matche-39f37-default-rtdb.firebaseio.com';
-    
-    // Register background message handler after Firebase is initialized
+
+    // Initialize OneSignal
+    OneSignal.initialize('8021659f-9f75-426b-8b81-6656c45b229a');
+    await OneSignal.Notifications.requestPermission(true);
+
+    // Set background message handler
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-    
+
     // Initialize notification service
     await NotificationService().initialize();
-    await FirebaseMessaging.instance.requestPermission();
 
-    // Save FCM token to Firestore (after login)
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      final token = await FirebaseMessaging.instance.getToken();
-      await FirestoreService().saveFcmToken(user.uid, token);
-    }
-
-    runApp(MultiProvider(
-      providers: [
-        Provider<FirestoreService>(create: (_) => FirestoreService()),
-        Provider<NotificationService>(create: (_) => NotificationService()),
-        Provider<MatchingService>(create: (_) => MatchingService(apiBaseUrl: 'https://backend-u5oi.onrender.com')),
-        Provider<GroupService>(create: (_) => GroupService()),
-        Provider<RealtimeChatService>(create: (_) => RealtimeChatService()),
-      ],
-      child: const Matcha(),
-    ));
+    runApp(
+      MultiProvider(
+        providers: [
+          Provider<FirestoreService>(create: (_) => FirestoreService()),
+          Provider<NotificationService>(create: (_) => NotificationService()),
+          Provider<MatchingService>(create: (_) => MatchingService()),
+          Provider<GroupService>(create: (_) => GroupService()),
+          Provider<RealtimeChatService>(create: (_) => RealtimeChatService()),
+        ],
+        child: const Matcha(),
+      ),
+    );
   } catch (e) {
-    print('Error initializing Firebase: $e');
-    runApp(MultiProvider(
-      providers: [
-        Provider<FirestoreService>(create: (_) => FirestoreService()),
-        Provider<NotificationService>(create: (_) => NotificationService()),
-        Provider<MatchingService>(create: (_) => MatchingService(apiBaseUrl: 'https://backend-u5oi.onrender.com')),
-        Provider<GroupService>(create: (_) => GroupService()),
-        Provider<RealtimeChatService>(create: (_) => RealtimeChatService()),
-      ],
-      child: const Matcha(),
-    ));
+    print('Error in main: $e');
+    // You might want to show an error screen or handle this differently
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error, size: 64, color: Colors.red),
+                SizedBox(height: 16),
+                Text('App initialization failed'),
+                SizedBox(height: 8),
+                Text('Please restart the app'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -169,7 +196,7 @@ class _MatchaState extends State<Matcha> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
+
     switch (state) {
       case AppLifecycleState.resumed:
         _setOnlineStatus(true);
@@ -195,9 +222,10 @@ class _MatchaState extends State<Matcha> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       home: SplashScreen(),
-      theme: ThemeData.dark(useMaterial3: true)
+      theme: ThemeData.dark(useMaterial3: true),
     );
   }
 }

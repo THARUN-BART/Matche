@@ -37,14 +37,19 @@ class _UsernameSelectionScreenState extends State<UsernameSelectionScreen> {
       }
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        setState(() { _error = 'Not logged in'; _isLoading = false; });
+        setState(() { _error = 'Not logged in. Please sign in again.'; _isLoading = false; });
+        // Optionally, you could navigate to the login screen here
         return;
       }
       await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
         'username': username,
       }, SetOptions(merge: true));
-      if (widget.onUsernameSet != null) widget.onUsernameSet!();
-      if (mounted) Navigator.pop(context);
+      if (widget.onUsernameSet != null) {
+        widget.onUsernameSet!();
+        return;
+      } else if (mounted) {
+        Navigator.pop(context);
+      }
     } catch (e) {
       setState(() { _error = 'Error: $e'; });
     } finally {

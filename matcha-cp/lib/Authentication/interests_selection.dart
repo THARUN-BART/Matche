@@ -57,6 +57,13 @@ class _InterestsSelectionScreenState extends State<InterestsSelectionScreen> {
 
   Future<void> _saveAndContinue() async {
     setState(() => _isLoading = true);
+    if (selectedInterests.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Please select at least one interest."), backgroundColor: Colors.red),
+      );
+      setState(() => _isLoading = false);
+      return;
+    }
     try {
       final userData = Map<String, dynamic>.from(widget.userData);
       userData['interests'] = selectedInterests;

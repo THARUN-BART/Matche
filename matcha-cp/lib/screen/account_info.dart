@@ -19,6 +19,8 @@ class _AccountInfoState extends State<AccountInfo> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _interestController = TextEditingController();
   final TextEditingController _skillSearchController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
+  String? _usernameError;
 
   Map<String, dynamic>? _userData;
   bool _isLoading = true;
@@ -58,6 +60,7 @@ class _AccountInfoState extends State<AccountInfo> {
     _phoneController.dispose();
     _interestController.dispose();
     _skillSearchController.dispose();
+    _usernameController.dispose();
     super.dispose();
   }
 
@@ -91,6 +94,7 @@ class _AccountInfoState extends State<AccountInfo> {
           _isLoading = false;
           _nameController.text = _userData?['name'] ?? "";
           _phoneController.text = _userData?['phone'] ?? "";
+          _usernameController.text = _userData?['username'] ?? "";
           _selectedGender = _userData?['gender'];
 
           if (_userData?['dob'] != null) {
@@ -122,6 +126,16 @@ class _AccountInfoState extends State<AccountInfo> {
     }
   }
 
+  Future<bool> _isUsernameTaken(String username) async {
+    final snap = await _firestore
+        .collection('users')
+        .where('username', isEqualTo: username)
+        .limit(1)
+        .get();
+    final user = _auth.currentUser;
+    return snap.docs.isNotEmpty && snap.docs.first.id != user?.uid;
+  }
+
   Future<void> _saveUserProfile() async {
     final user = _auth.currentUser;
     if (user == null) return;
@@ -131,6 +145,23 @@ class _AccountInfoState extends State<AccountInfo> {
       _showSnackBar("Name is required", Colors.red);
       return;
     }
+    final username = _usernameController.text.trim();
+    if (username.isEmpty) {
+      setState(() => _usernameError = "Username is required");
+      _showSnackBar("Username is required", Colors.red);
+      return;
+    }
+    if (!RegExp(r'^[a-zA-Z0-9_@]+$').hasMatch(username)) {
+      setState(() => _usernameError = "3-20 chars, letters, numbers, @ and _ only");
+      _showSnackBar("Invalid username format", Colors.red);
+      return;
+    }
+    if (await _isUsernameTaken(username)) {
+      setState(() => _usernameError = "Username already taken");
+      _showSnackBar("Username already taken", Colors.red);
+      return;
+    }
+    setState(() => _usernameError = null);
 
     try {
       showDialog(
@@ -140,6 +171,7 @@ class _AccountInfoState extends State<AccountInfo> {
       );
 
       await _firestore.collection("users").doc(user.uid).update({
+        "username": username,
         "name": _nameController.text.trim(),
         "phone": _phoneController.text.trim(),
         "gender": _selectedGender,
@@ -787,6 +819,16 @@ class _AccountInfoState extends State<AccountInfo> {
               ),
             ] else ...[
               // Edit Mode
+              TextField(
+                controller: _usernameController,
+                decoration: InputDecoration(
+                  labelText: "Username",
+                  prefixIcon: Icon(Icons.verified_user),
+                  border: OutlineInputBorder(),
+                  errorText: _usernameError,
+                ),
+              ),
+              const SizedBox(height: 16),
               TextField(
                 controller: _nameController,
                 decoration: const InputDecoration(

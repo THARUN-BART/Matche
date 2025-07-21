@@ -58,6 +58,16 @@ class _SignupState extends State<Signup> {
   bool isValidPhone(String phone) => RegExp(r'^[6-9][0-9]{9}$').hasMatch(phone);
   bool isValidEmail(String email) => RegExp(r'^[\w.%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$').hasMatch(email);
 
+  String? passwordValidator(String? value, String labelText, {TextEditingController? compareWith}) {
+    if (value == null || value.isEmpty) return "Enter $labelText";
+    if (value.length < 6) return "Min 6 characters";
+    if (!RegExp(r'[A-Z]').hasMatch(value)) return "Include at least one uppercase letter";
+    if (!RegExp(r'[0-9]').hasMatch(value)) return "Include at least one number";
+    if (!RegExp(r'[!@#\$&*~]').hasMatch(value)) return "Include at least one symbol";
+    if (compareWith != null && value != compareWith.text) return "Passwords do not match";
+    return null;
+  }
+
   void showSnack(String msg, {bool success = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), backgroundColor: success ? Colors.green : Colors.red),
@@ -246,10 +256,10 @@ class _SignupState extends State<Signup> {
         prefixIcon: Icon(icon),
         suffixIcon: isEmail && _isEmailLocked
             ? IconButton(
-                icon: Icon(Icons.edit, color: Colors.blue),
-                onPressed: _enableEmailEdit,
-                tooltip: 'Edit Email',
-              )
+          icon: Icon(Icons.edit, color: Colors.blue),
+          onPressed: _enableEmailEdit,
+          tooltip: 'Edit Email',
+        )
             : null,
       ),
       validator: (v) {
@@ -277,12 +287,7 @@ class _SignupState extends State<Signup> {
           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
         ),
       ),
-      validator: (value) {
-        if (value == null || value.isEmpty) return "Enter $labelText";
-        if (value.length < 6) return "Min 6 characters";
-        if (compareWith != null && value != compareWith.text) return "Passwords do not match";
-        return null;
-      },
+      validator: (value) => passwordValidator(value, labelText, compareWith: compareWith),
     );
   }
 
@@ -446,66 +451,66 @@ class _SignupState extends State<Signup> {
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              children: [
-                buildTextField(_nameController, "Full Name", Icons.person),
-                const SizedBox(height: 16),
-                buildTextField(_phoneController, "Phone Number", Icons.phone,inputType: TextInputType.number),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedGender,
-                  items: ['Male', 'Female', 'Other']
-                      .map((g) => DropdownMenuItem(value: g, child: Text(g)))
-                      .toList(),
-                  onChanged: (val) => setState(() => selectedGender = val!),
-                  decoration: InputDecoration(
-                    labelText: 'Gender',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20.0),
-                    ),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              buildTextField(_nameController, "Full Name", Icons.person),
+              const SizedBox(height: 16),
+              buildTextField(_phoneController, "Phone Number", Icons.phone,inputType: TextInputType.number),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: selectedGender,
+                items: ['Male', 'Female', 'Other']
+                    .map((g) => DropdownMenuItem(value: g, child: Text(g)))
+                    .toList(),
+                onChanged: (val) => setState(() => selectedGender = val!),
+                decoration: InputDecoration(
+                  labelText: 'Gender',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20.0),
                   ),
                 ),
+              ),
+              const SizedBox(height: 16),
+              buildDOBPicker(),
+              const SizedBox(height: 16),
+              buildTextField(_emailController, "Email Address", Icons.email, isEmail: true),
+              const SizedBox(height: 16),
+              buildPasswordField('Password', _passwordController),
+              const SizedBox(height: 16),
+              buildPasswordField('Confirm Password', _ConfirmpasswordController, compareWith: _passwordController),
+              const SizedBox(height: 24),
+
+              if (_otpSent) ...[
+                buildOTPField(),
                 const SizedBox(height: 16),
-                buildDOBPicker(),
-                const SizedBox(height: 16),
-                buildTextField(_emailController, "Email Address", Icons.email, isEmail: true),
-                const SizedBox(height: 16),
-                buildPasswordField('Password', _passwordController),
-                const SizedBox(height: 16),
-                buildPasswordField('Confirm Password', _ConfirmpasswordController, compareWith: _passwordController),
-                const SizedBox(height: 24),
-          
-                if (_otpSent) ...[
-                  buildOTPField(),
-                  const SizedBox(height: 16),
-                ],
-          
-                if (!_otpSent)
-                  buildStyledButton(
-                    text: "Send OTP",
-                    onPressed: _isLoading ? null : sendOTP,
-                    backgroundColor: Color(0xFFFFEC3D),
-                    textColor: Colors.black,
-                    isLoading: _isLoading,
-                  ),
-          
-                if (_otpSent) ...[
-                  buildStyledButton(
-                    text: "Verify & Continue",
-                    onPressed: _isLoading ? null : verifyOTP,
-                    backgroundColor: Colors.green,
-                    textColor: Colors.white,
-                    isLoading: _isLoading,
-                  ),
-                ],
-          
-                const SizedBox(height: 20),
               ],
-            ),
+
+              if (!_otpSent)
+                buildStyledButton(
+                  text: "Send OTP",
+                  onPressed: _isLoading ? null : sendOTP,
+                  backgroundColor: Color(0xFFFFEC3D),
+                  textColor: Colors.black,
+                  isLoading: _isLoading,
+                ),
+
+              if (_otpSent) ...[
+                buildStyledButton(
+                  text: "Verify & Continue",
+                  onPressed: _isLoading ? null : verifyOTP,
+                  backgroundColor: Colors.green,
+                  textColor: Colors.white,
+                  isLoading: _isLoading,
+                ),
+              ],
+
+              const SizedBox(height: 20),
+            ],
           ),
         ),
+      ),
     );
   }
 }

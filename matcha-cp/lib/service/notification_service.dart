@@ -6,11 +6,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:onesignal_flutter/onesignal_flutter.dart';
+import '../constants/Constant.dart';
+import '../main.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
+
+  static const bool useOneSignal = true;
 
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
@@ -27,6 +32,14 @@ class NotificationService {
 
   // Initialize notification service
   Future<void> initialize() async {
+    if (useOneSignal) {
+      await _initializeOneSignal();
+      // Add OneSignal notification event handlers
+      OneSignal.Notifications.addClickListener((event) {
+        debugPrint('OneSignal notification clicked: ${event.notification.title}');
+        // Handle notification tap (navigate, etc.)
+      });
+    }
     try {
       // Request permission for iOS
       NotificationSettings settings = await _messaging.requestPermission(
@@ -40,16 +53,19 @@ class NotificationService {
       );
 
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-        print('User granted notification permission');
+        debugPrint('User granted notification permission');
       } else {
-        print('User declined or has not accepted notification permission: ${settings.authorizationStatus}');
+        debugPrint('User declined or has not accepted notification permission: ${settings.authorizationStatus}');
       }
 
-      // Get FCM token
+      // Get FCM token and store in Firestore if logged in
       String? token = await _messaging.getToken();
       if (token != null) {
-        print('FCM Token: $token');
-        // Store token in Firestore if user is logged in
+        debugPrint('FCM Token: $token');
+        if (useOneSignal) {
+          await OneSignal.login(token);
+          debugPrint('Set OneSignal external user ID to FCM token using OneSignal.login');
+        }
         final currentUser = _auth.currentUser;
         if (currentUser != null) {
           await storeTokenAfterLogin(currentUser.uid);
@@ -57,34 +73,37 @@ class NotificationService {
       }
 
       // Handle token refresh
-      _messaging.onTokenRefresh.listen((newToken) {
-        print('FCM Token refreshed: $newToken');
-        // Update token in Firestore
+      _messaging.onTokenRefresh.listen((newToken) async {
+        debugPrint('FCM Token refreshed: $newToken');
+        if (useOneSignal) {
+          await OneSignal.login(newToken);
+          debugPrint('Updated OneSignal external user ID to new FCM token using OneSignal.login');
+        }
         _updateTokenInFirestore(newToken);
       });
 
       // Initialize local notifications
       await _initializeLocalNotifications();
 
-      // Handle foreground messages
+      // Foreground message handler
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
 
-      // Handle notification taps when app is opened from background
+      // Notification tap when app is in background
       FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationTap);
 
-      // Handle initial notification when app is opened from terminated state
+      // Initial notification when app is opened from terminated state
       RemoteMessage? initialMessage = await _messaging.getInitialMessage();
       if (initialMessage != null) {
-        print('App opened from terminated state with notification: ${initialMessage.data}');
+        debugPrint('App opened from terminated state with notification: ${initialMessage.data}');
         _handleNotificationTap(initialMessage);
       }
 
       // Load initial badge count
       await _loadBadgeCount();
-      
-      print('Notification service initialized successfully');
+
+      debugPrint('Notification service initialized successfully');
     } catch (e) {
-      print('Error initializing notifications: $e');
+      debugPrint('Error initializing notifications: $e');
     }
   }
 
@@ -97,18 +116,16 @@ class NotificationService {
           'fcmToken': token,
           'lastTokenUpdate': FieldValue.serverTimestamp(),
         });
-        print('FCM token stored for user: $userId');
+        debugPrint('FCM token stored for user: $userId');
       }
     } catch (e) {
-      print('Error storing FCM token: $e');
+      debugPrint('Error storing FCM token: $e');
     }
   }
 
   // Update token in Firestore
   Future<void> _updateTokenInFirestore(String token) async {
     try {
-      // Get current user ID from your auth service
-      // This is a placeholder - implement based on your auth system
       String? userId = _getCurrentUserId();
       if (userId != null) {
         await _firestore.collection('users').doc(userId).update({
@@ -117,11 +134,11 @@ class NotificationService {
         });
       }
     } catch (e) {
-      print('Error updating FCM token: $e');
+      debugPrint('Error updating FCM token: $e');
     }
   }
 
-  // Get current user ID (implement based on your auth system)
+  // Get current user ID
   String? _getCurrentUserId() {
     return _auth.currentUser?.uid;
   }
@@ -131,30 +148,24 @@ class NotificationService {
     try {
       const AndroidInitializationSettings initializationSettingsAndroid =
           AndroidInitializationSettings('@mipmap/ic_launcher');
-
       const DarwinInitializationSettings initializationSettingsIOS =
           DarwinInitializationSettings(
         requestAlertPermission: true,
         requestBadgePermission: true,
         requestSoundPermission: true,
       );
-
       const InitializationSettings initializationSettings = InitializationSettings(
         android: initializationSettingsAndroid,
         iOS: initializationSettingsIOS,
       );
-
       await _localNotifications.initialize(
         initializationSettings,
         onDidReceiveNotificationResponse: _onNotificationTap,
       );
-      
-      // Create notification channel for Android
       await _createNotificationChannel();
-      
-      print('Local notifications initialized successfully');
+      debugPrint('Local notifications initialized successfully');
     } catch (e) {
-      print('Error initializing local notifications: $e');
+      debugPrint('Error initializing local notifications: $e');
     }
   }
 
@@ -169,7 +180,6 @@ class NotificationService {
       enableVibration: true,
       showBadge: true,
     );
-
     await _localNotifications
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
         ?.createNotificationChannel(channel);
@@ -177,14 +187,10 @@ class NotificationService {
 
   // Handle foreground messages
   void _handleForegroundMessage(RemoteMessage message) {
-    print('Got a message whilst in the foreground!');
-    print('Message data: ${message.data}');
-    print('Message notification: ${message.notification?.title} - ${message.notification?.body}');
-
-    // Always show local notification for foreground messages
+    debugPrint('Got a message whilst in the foreground!');
+    debugPrint('Message data: ${message.data}');
+    debugPrint('Message notification: ${message.notification?.title} - ${message.notification?.body}');
     _showLocalNotification(message);
-    
-    // Update badge count
     _badgeCount++;
     _badgeController.add(_badgeCount);
   }
@@ -205,7 +211,6 @@ class NotificationService {
         icon: '@mipmap/ic_launcher',
         color: Color(0xFF2196F3),
       );
-
       const DarwinNotificationDetails iOSPlatformChannelSpecifics =
           DarwinNotificationDetails(
         presentAlert: true,
@@ -213,16 +218,13 @@ class NotificationService {
         presentSound: true,
         badgeNumber: 1,
       );
-
       const NotificationDetails platformChannelSpecifics = NotificationDetails(
         android: androidPlatformChannelSpecifics,
         iOS: iOSPlatformChannelSpecifics,
       );
-
       final notificationId = message.hashCode;
       final title = message.notification?.title ?? message.data['title'] ?? 'New Message';
       final body = message.notification?.body ?? message.data['body'] ?? 'You have a new message';
-
       await _localNotifications.show(
         notificationId,
         title,
@@ -230,177 +232,102 @@ class NotificationService {
         platformChannelSpecifics,
         payload: json.encode(message.data),
       );
-      
-      print('Local notification shown: $title - $body');
+      debugPrint('Local notification shown: $title - $body');
     } catch (e) {
-      print('Error showing local notification: $e');
+      debugPrint('Error showing local notification: $e');
     }
   }
 
-  // Handle notification tap
+  // Handle notification tap (background/terminated)
   void _handleNotificationTap(RemoteMessage message) {
-    print('Notification tapped: ${message.data}');
-    // Navigate to appropriate screen based on message data
-    _navigateToScreen(message.data);
-  }
-
-  // Handle local notification tap
-  void _onNotificationTap(NotificationResponse response) {
-    print('Local notification tapped: ${response.payload}');
-    if (response.payload != null) {
-      Map<String, dynamic> data = json.decode(response.payload!);
-      _navigateToScreen(data);
-    }
-  }
-
-  // Navigate to appropriate screen
-  void _navigateToScreen(Map<String, dynamic> data) {
-    // TODO: Implement navigation based on notification type
-    // Example:
-    // if (data['type'] == 'connection_request') {
-    //   // Navigate to connections screen
-    // } else if (data['type'] == 'group_invite') {
-    //   // Navigate to groups screen
-    // }
-  }
-
-  // Handle notification tap with navigation
-  void handleNotificationTap(Map<String, dynamic> data, BuildContext context) {
+    debugPrint('Notification tapped: ${message.data}');
+    final data = message.data;
     final type = data['type'];
-    
     switch (type) {
       case 'connection_request':
-        // Navigate to matches screen with requests tab
-        Navigator.pushNamed(context, '/matches', arguments: {'tab': 'requests'});
+        _showNotificationSnackbar('You have a new connection request!');
         break;
-        
       case 'connection_accepted':
-      case 'connection_made':
-        // Navigate to matches screen with matches tab
-        Navigator.pushNamed(context, '/matches', arguments: {'tab': 'matches'});
+        _showNotificationSnackbar('Your connection request was accepted!');
         break;
-        
-      case 'connection_rejected':
-        // Navigate to matches screen with suggestions tab
-        Navigator.pushNamed(context, '/matches', arguments: {'tab': 'suggestions'});
-        break;
-        
-      case 'message':
-        // Navigate to chat screen
-        final chatId = data['chatId'];
-        final senderId = data['senderId'];
-        final senderName = data['senderName'];
-        if (chatId != null && senderId != null && senderName != null) {
-          Navigator.pushNamed(context, '/chat', arguments: {
-            'chatId': chatId,
-            'otherUserId': senderId,
-            'otherUserName': senderName,
-          });
-        }
-        break;
-        
-      case 'group_message':
-        // Navigate to group chat screen
-        final groupId = data['groupId'];
-        final groupName = data['groupName'];
-        if (groupId != null && groupName != null) {
-          Navigator.pushNamed(context, '/group-chat', arguments: {
-            'groupId': groupId,
-            'groupName': groupName,
-          });
-        }
-        break;
-        
       case 'group_invitation':
-        // Navigate to group invitations screen
-        Navigator.pushNamed(context, '/group-invitations');
+        _showNotificationSnackbar('You have a new group invitation!');
         break;
-        
       default:
-        // Navigate to messages screen for unknown types
-        Navigator.pushNamed(context, '/messages');
+        // Ignore other types
         break;
     }
   }
 
-  // Subscribe to topics (optional)
-  Future<void> subscribeToTopic(String topic) async {
-    await _messaging.subscribeToTopic(topic);
-  }
-
-  // Unsubscribe from topics
-  Future<void> unsubscribeFromTopic(String topic) async {
-    await _messaging.unsubscribeFromTopic(topic);
-  }
-
-  // Clear token on logout
-  Future<void> clearTokenOnLogout(String userId) async {
-    try {
-      await _firestore.collection('users').doc(userId).update({
-        'fcmToken': FieldValue.delete(),
-      });
-    } catch (e) {
-      print('Error clearing FCM token: $e');
+  // Handle local notification tap (foreground)
+  void _onNotificationTap(NotificationResponse response) {
+    debugPrint('Local notification tapped: ${response.payload}');
+    if (response.payload != null) {
+      Map<String, dynamic> data = json.decode(response.payload!);
+      final type = data['type'];
+      switch (type) {
+        case 'connection_request':
+          _showNotificationSnackbar('You have a new connection request!');
+          break;
+        case 'connection_accepted':
+          _showNotificationSnackbar('Your connection request was accepted!');
+          break;
+        case 'group_invitation':
+          _showNotificationSnackbar('You have a new group invitation!');
+          break;
+        default:
+          // Ignore other types
+          break;
+      }
     }
   }
 
-  Future<void> _loadBadgeCount() async {
-    if (_auth.currentUser != null) {
-      final unreadQuery = await _firestore
-          .collection('notifications')
-          .where('to', isEqualTo: _auth.currentUser!.uid)
-          .where('read', isEqualTo: false)
-          .get();
-      
-      _badgeCount = unreadQuery.docs.length;
-      _badgeController.add(_badgeCount);
+  void _showNotificationSnackbar(String message) {
+    final context = navigatorKey.currentContext;
+    if (context != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
     }
   }
 
+  // Mark a notification as read
   Future<void> markNotificationAsRead(String notificationId) async {
     await _firestore.collection('notifications').doc(notificationId).update({
       'read': true,
     });
-    
-    // Update badge count
     _badgeCount = _badgeCount > 0 ? _badgeCount - 1 : 0;
     _badgeController.add(_badgeCount);
   }
 
+  // Mark all notifications as read
   Future<void> clearAllNotifications() async {
     if (_auth.currentUser != null) {
-      // Mark all notifications as read
       final batch = _firestore.batch();
       final unreadQuery = await _firestore
           .collection('notifications')
           .where('to', isEqualTo: _auth.currentUser!.uid)
           .where('read', isEqualTo: false)
           .get();
-      
       for (var doc in unreadQuery.docs) {
         batch.update(doc.reference, {'read': true});
       }
       await batch.commit();
-      
-      // Reset badge count
       _badgeCount = 0;
       _badgeController.add(_badgeCount);
     }
   }
 
-  // Send notification to specific user
+  // Send notification to a specific user (stores in Firestore)
   Future<void> sendNotificationToUser({
     required String toUserId,
     required String title,
     required String body,
     Map<String, dynamic>? data,
   }) async {
-    // Get user's FCM token
     final userDoc = await _firestore.collection('users').doc(toUserId).get();
     final fcmToken = userDoc.data()?['fcmToken'];
-    
     if (fcmToken != null) {
-      // Store notification in Firestore
       await _firestore.collection('notifications').add({
         'to': toUserId,
         'title': title,
@@ -409,13 +336,11 @@ class NotificationService {
         'timestamp': FieldValue.serverTimestamp(),
         'read': false,
       });
-      
       // Note: For actual FCM sending, you'll need a server-side implementation
-      // This is just storing the notification locally
     }
   }
 
-  // Public method to show a local notification with title and body
+  // Show a local notification with title and body
   Future<void> showLocalNotification({
     required String title,
     required String body,
@@ -428,15 +353,12 @@ class NotificationService {
       importance: Importance.max,
       priority: Priority.high,
     );
-
     const DarwinNotificationDetails iOSPlatformChannelSpecifics =
         DarwinNotificationDetails();
-
     const NotificationDetails platformChannelSpecifics = NotificationDetails(
       android: androidPlatformChannelSpecifics,
       iOS: iOSPlatformChannelSpecifics,
     );
-
     await _localNotifications.show(
       DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title,
@@ -445,6 +367,7 @@ class NotificationService {
     );
   }
 
+  // Send an FCM notification (requires server key)
   Future<void> sendFCMNotification({
     required String token,
     required String title,
@@ -473,14 +396,14 @@ class NotificationService {
   // Test notification function for debugging
   Future<void> testNotification() async {
     try {
-      print('Testing local notification...');
+      debugPrint('Testing local notification...');
       await showLocalNotification(
         title: 'Test Notification',
         body: 'This is a test notification from Matcha!',
       );
-      print('Test notification sent successfully');
+      debugPrint('Test notification sent successfully');
     } catch (e) {
-      print('Error sending test notification: $e');
+      debugPrint('Error sending test notification: $e');
     }
   }
 
@@ -488,15 +411,75 @@ class NotificationService {
   Future<String?> getCurrentFCMToken() async {
     try {
       final token = await _messaging.getToken();
-      print('Current FCM token: ${token?.substring(0, 20)}...');
+      debugPrint('Current FCM token: ${token?.substring(0, 20)}...');
       return token;
     } catch (e) {
-      print('Error getting FCM token: $e');
+      debugPrint('Error getting FCM token: $e');
       return null;
+    }
+  }
+
+  // OneSignal initialization
+  Future<void> _initializeOneSignal() async {
+    OneSignal.initialize('8021659f-9f75-426b-8b81-6656c45b229a');
+    OneSignal.Notifications.requestPermission(true);
+    // No navigation logic needed
+  }
+
+  // Get the OneSignal player ID for this device (for backend targeting)
+  Future<String?> getOneSignalPlayerId() async {
+    if (!useOneSignal) return null;
+    return await OneSignal.User.pushSubscription.id;
+  }
+
+  // Helper to log out from OneSignal (call on user logout)
+  Future<void> logoutFromOneSignal() async {
+    if (useOneSignal) {
+      await OneSignal.logout();
+      debugPrint('Logged out from OneSignal (external user ID cleared)');
+    }
+  }
+
+  // Manual notification test using deployed backend
+  Future<void> sendManualNotification({
+    required String userId,
+    required String title,
+    required String message,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse(' $backendBaseUrl/notify-user'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'user_id': userId,
+          'title': title,
+          'message': message,
+        }),
+      );
+      
+      if (response.statusCode == 200) {
+        debugPrint('Manual notification sent successfully');
+      } else {
+        debugPrint('Failed to send manual notification: ${response.statusCode} ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Error sending manual notification: $e');
+    }
+  }
+
+  Future<void> _loadBadgeCount() async {
+    if (_auth.currentUser != null) {
+      final unreadQuery = await _firestore
+          .collection('notifications')
+          .where('to', isEqualTo: _auth.currentUser!.uid)
+          .where('read', isEqualTo: false)
+          .get();
+      _badgeCount = unreadQuery.docs.length;
+      _badgeController.add(_badgeCount);
     }
   }
 
   void dispose() {
     _badgeController.close();
   }
-} 
+}

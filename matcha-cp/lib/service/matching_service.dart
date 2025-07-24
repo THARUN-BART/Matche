@@ -14,11 +14,33 @@ class MatchingService {
 
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
-      return data.cast<Map<String, dynamic>>();
+
+      final List<Map<String, dynamic>> detailedMatches = [];
+
+      for (final match in data) {
+        final uid = match['uid'];
+        final similarity = match['similarity'];
+
+        if (uid != null) {
+          try {
+            final userDetails = await getUserDetails(uid);
+            detailedMatches.add({
+              'uid': uid,
+              'similarity': similarity,
+              ...userDetails,
+            });
+          } catch (e) {
+            print('Failed to fetch user details for $uid: $e');
+          }
+        }
+      }
+
+      return detailedMatches;
     } else {
-      throw Exception('Failed to fetch cluster matches:  [31m${response.body}');
+      throw Exception('Failed to fetch cluster matches: ${response.body}');
     }
   }
+
 
   // Fetch user details by UID
   Future<Map<String, dynamic>> getUserDetails(String uid) async {

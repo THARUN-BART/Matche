@@ -144,58 +144,51 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   Widget _buildMessageInput() {
     final firestoreService = Provider.of<FirestoreService>(context, listen: false);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            spreadRadius: 1,
-            blurRadius: 5,
-            offset: const Offset(0, -3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _messageController,style: TextStyle(color: Colors.black),
-              decoration: InputDecoration(
-                hintText: 'Type a message...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(25),
-                  borderSide: BorderSide.none,
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _messageController,style: TextStyle(color: Colors.black),
+                decoration: InputDecoration(
+                  hintText: 'Type a message...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(25),
+                    borderSide: BorderSide.none,
+                  ),
+                  fillColor: Colors.white,
+                  filled: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                 ),
-                fillColor: Colors.white,
-                filled: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                maxLines: null,
               ),
-              maxLines: null,
             ),
-          ),
-          const SizedBox(width: 8),
-          CircleAvatar(
-            backgroundColor: Color(0xFFFFEC3D),
-            child: IconButton(
-              icon: const Icon(Icons.send, color: Colors.black),
-              onPressed: () {
-                if (_messageController.text.isNotEmpty) {
-                  FirebaseFirestore.instance
-                      .collection('groups')
-                      .doc(widget.groupId)
-                      .collection('messages')
-                      .add({
-                    'senderId': firestoreService.currentUserId,
-                    'text': _messageController.text,
-                    'timestamp': FieldValue.serverTimestamp(),
-                  });
-                  _messageController.clear();
-                }
-              },
+            const SizedBox(width: 8),
+            CircleAvatar(
+              backgroundColor: Color(0xFFFFEC3D),
+              child: IconButton(
+                icon: const Icon(Icons.send, color: Colors.black),
+                onPressed: () {
+                  if (_messageController.text.isNotEmpty) {
+                    FirebaseFirestore.instance
+                        .collection('groups')
+                        .doc(widget.groupId)
+                        .collection('messages')
+                        .add({
+                      'senderId': firestoreService.currentUserId,
+                      'text': _messageController.text,
+                      'timestamp': FieldValue.serverTimestamp(),
+                    });
+                    _messageController.clear();
+                  }
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

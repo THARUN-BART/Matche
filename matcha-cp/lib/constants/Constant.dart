@@ -59,3 +59,20 @@ final List<String> allInterestOptions = [
 ];
 
 const String backendBaseUrl = 'https://backend-u5oi.onrender.com';
+
+final List<String> timeSlots = [
+  "6-8am",
+  "8-10am",
+  "4-6pm",
+  "6-8pm",
+  "8-10pm"
+];
+final List<String> days = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday"
+];

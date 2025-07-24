@@ -207,7 +207,7 @@ class SkeletonMatchCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 16),
-            // Name and similarity skeleton
+
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,

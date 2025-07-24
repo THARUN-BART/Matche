@@ -252,52 +252,52 @@ class _ChatListScreenState extends State<ChatListScreen> {
   void _showNewChatOptions() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.grey,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 8),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(2),
+      builder: (context) => SafeArea(
+        child: Container(
+          decoration: const BoxDecoration(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 8),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Group Options',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+              const SizedBox(height: 16),
+              const Text(
+                'Group Options',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            _buildOptionTile(
-              icon: Icons.group_add,
-              title: 'Create New Group',
-              subtitle: 'Create a new group chat',
-              onTap: () {
-                Navigator.pop(context);
-                _showCreateGroup();
-              },
-            ),
-            _buildOptionTile(
-              icon: Icons.mail,
-              title: 'Group Invitations',
-              subtitle: 'View pending group invitations',
-              onTap: () {
-                Navigator.pop(context);
-                _showGroupInvitations();
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
+              const SizedBox(height: 16),
+              _buildOptionTile(
+                icon: Icons.group_add,
+                title: 'Create New Group',
+                subtitle: 'Create a new group chat',
+                onTap: () {
+                  Navigator.pop(context);
+                  _showCreateGroup();
+                },
+              ),
+              _buildOptionTile(
+                icon: Icons.mail,
+                title: 'Group Invitations',
+                subtitle: 'View pending group invitations',
+                onTap: () {
+                  Navigator.pop(context);
+                  _showGroupInvitations();
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );

@@ -227,23 +227,34 @@ class _MainNavigationState extends State<MainNavigation> {
         selectedItemColor: Color(0xFFFFEC3D),
         unselectedItemColor: Colors.grey,
         items: [
-          const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          const BottomNavigationBarItem(icon: Tooltip(message: "Home Screen",child:Icon(Icons.home)), label: 'Home'),
           BottomNavigationBarItem(
-            icon: SvgPicture.asset(
-              'Assets/match.svg',
-              width: 25,
-              height: 25,
-              color: Colors.grey,
+            icon: Tooltip(
+              message: "View and connect with your matches",
+              child: SvgPicture.asset(
+                'Assets/match.svg',
+                width: 25,
+                height: 25,
+                color: Colors.grey,
+              ),
             ),
-            activeIcon: SvgPicture.asset(
-              'Assets/Group.svg',
-              width: 30,
-              height: 30,
+            activeIcon: Tooltip(
+              message: "Chat, connect, and accept matches",
+              child: SvgPicture.asset(
+                'Assets/Group.svg',
+                width: 30,
+                height: 30,
+              ),
             ),
             label: 'Matches',
           ),
-          const BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Messages'),
-          const BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+          BottomNavigationBarItem(
+            icon: Tooltip(message: "Group Messages", child: Icon(Icons.chat)),
+            label: 'Groups',
+          ),
+          const BottomNavigationBarItem(
+    
+              icon: Tooltip(message: "Settings",child: Icon(Icons.settings)), label: 'Settings'),
         ],
       ),
     );

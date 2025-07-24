@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:matcha/Authentication/Login.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:matcha/screen/error_screen.dart';
 import 'package:matcha/screen/main_navigation.dart';
 import 'package:matcha/service/notification_service.dart';
-
+import 'package:matcha/screen/no_internet_screen.dart';
 import 'Authentication/welcome_page.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -20,156 +21,144 @@ class _SplashScreenState extends State<SplashScreen> {
   void initState() {
     super.initState();
     print('SplashScreen: initState called');
-    _initializeAppAndCheckAuth();
-    
-    // Add a timeout to prevent getting stuck
-    Future.delayed(Duration(seconds: 10), () {
+    _checkConnectivityAndInitialize();
+
+    Future.delayed(const Duration(seconds: 10), () {
       if (mounted) {
         print('SplashScreen: Timeout reached, forcing navigation to Login');
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => welcome_page()),
+          MaterialPageRoute(builder: (context) => const welcome_page()),
         );
       }
     });
   }
 
+  Future<void> _checkConnectivityAndInitialize() async {
+    final connectivity = await Connectivity().checkConnectivity();
+    if (connectivity == ConnectivityResult.none) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const NoInternetScreen()),
+      );
+      return;
+    }
+
+    await _initializeAppAndCheckAuth();
+  }
+
   Future<void> _initializeAppAndCheckAuth() async {
     try {
-      print('SplashScreen: Starting initialization...');
-      // Standard splash screen delay
-      await Future.delayed(Duration(milliseconds: 1000));
-      print('SplashScreen: Delay completed');
-
-      // Check authentication state
+      await _initializeNotifications();
+      await Future.delayed(const Duration(milliseconds: 1000));
       await _checkAuthState();
     } catch (e) {
-      print('SplashScreen: Error during app initialization: $e');
-      // Even if there's an error, try to check auth state
-      try {
-        await _checkAuthState();
-      } catch (authError) {
-        print('SplashScreen: Error in auth check: $authError');
-        // If all else fails, go to login
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => welcome_page()),
-          );
-        }
-      }
+      _navigateToErrorScreen('Initialization failed: $e');
     }
   }
 
+  /// Requests notification permission and sets up Firebase Messaging
+  Future<void> _initializeNotifications() async {
+    try {
+      final settings = await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+
+      if (settings.authorizationStatus == AuthorizationStatus.authorized) {
+        print('✅ Notification permission granted');
+        await NotificationService().initialize();
+      } else {
+        _navigateToErrorScreen('Notification permission denied');
+      }
+    } catch (e) {
+      _navigateToErrorScreen('Notification setup error: $e');
+    }
+  }
+
+  /// Checks if the user is logged in and navigates accordingly
   Future<void> _checkAuthState() async {
     try {
-      print('SplashScreen: Checking auth state...');
-      User? user = FirebaseAuth.instance.currentUser;
-      print('SplashScreen: Current user: ${user?.uid ?? 'null'}');
+      final user = FirebaseAuth.instance.currentUser;
+      print('SplashScreen: Current user: ${user?.uid ?? "null"}');
 
       if (user != null) {
-        try {
-          print('SplashScreen: User exists, checking Firestore...');
-          // Get user data from Firestore
-          DocumentSnapshot userDoc =
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .get();
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
 
-          print('SplashScreen: Firestore document exists: ${userDoc.exists}');
-
-          if (userDoc.exists) {
-            // Store FCM token for background notifications
-            print('SplashScreen: Storing FCM token...');
-            await _storeFCMToken(user.uid);
-            
-            print('SplashScreen: Navigating to MainNavigation...');
-            if (mounted) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => MainNavigation()),
-              );
-            }
-          } else {
-            print('SplashScreen: User doc not found, navigating to Login...');
-            if (mounted) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => welcome_page()),
-              );
-            }
-          }
-        } catch (e) {
-          print('SplashScreen: Error checking user doc: $e');
+        if (userDoc.exists) {
+          await _storeFCMToken(user.uid);
           if (mounted) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (context) => welcome_page()),
+              MaterialPageRoute(builder: (context) => const MainNavigation()),
             );
           }
+        } else {
+          _navigateToLogin();
         }
       } else {
-        print('SplashScreen: No user, navigating to Login...');
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => welcome_page()),
-          );
-        }
+        _navigateToLogin();
       }
     } catch (e) {
-      print('SplashScreen: Error in _checkAuthState: $e');
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => welcome_page()),
-        );
-      }
+      _navigateToLogin();
     }
   }
 
   Future<void> _storeFCMToken(String userId) async {
     try {
-      print('SplashScreen: Getting FCM token...');
-      String? token = await FirebaseMessaging.instance.getToken();
+      final token = await FirebaseMessaging.instance.getToken();
       if (token != null) {
-        print('SplashScreen: FCM token obtained: ${token.substring(0, 20)}...');
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(userId)
-            .update({
-              'fcmToken': token,
-              'lastTokenUpdate': FieldValue.serverTimestamp(),
-            });
-        print('SplashScreen: FCM token stored successfully');
-        
-        // Also store in notification service
+        await FirebaseFirestore.instance.collection('users').doc(userId).update({
+          'fcmToken': token,
+          'lastTokenUpdate': FieldValue.serverTimestamp(),
+        });
+
         await NotificationService().storeTokenAfterLogin(userId);
+        print('FCM token stored');
       } else {
-        print('SplashScreen: FCM token is null');
+        print('FCM token is null');
       }
     } catch (e) {
-      print('SplashScreen: Error storing FCM token: $e');
+      print('Failed to store FCM token: $e');
+    }
+  }
+
+  void _navigateToLogin() {
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const welcome_page()),
+      );
+    }
+  }
+
+  void _navigateToErrorScreen(String message) {
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => ErrorScreen(errorMessage: message)),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    print('SplashScreen: Building UI...');
-    return Scaffold(
+    return const Scaffold(
       backgroundColor: Colors.black,
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(
-              'Assets/Main_IC.png',width: 250,
+            Image(
+              image: AssetImage('Assets/Main_IC.png'),
+              width: 250,
             ),
-            const SizedBox(height: 20),
-            const CircularProgressIndicator(
-              color: Colors.white,
-            ),
+            SizedBox(height: 20),
+            CircularProgressIndicator(color: Colors.white),
           ],
         ),
       ),

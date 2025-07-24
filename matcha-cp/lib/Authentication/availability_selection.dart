@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:matcha/service/notification_service.dart';
-import 'package:matcha/screen/main_navigation.dart';
 import 'package:matcha/Authentication/bigfive_selection.dart';
-
+import '../constants/Constant.dart';
 class AvailabilitySelectionScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
   const AvailabilitySelectionScreen({super.key, required this.userData});
@@ -17,22 +15,6 @@ class AvailabilitySelectionScreen extends StatefulWidget {
 class _AvailabilitySelectionScreenState
     extends State<AvailabilitySelectionScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final List<String> timeSlots = [
-    "6-8am",
-    "8-10am",
-    "4-6pm",
-    "6-8pm",
-    "8-10pm"
-  ];
-  final List<String> days = [
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday"
-  ];
   Map<String, List<String>> availability = {};
   bool _isLoading = false;
 

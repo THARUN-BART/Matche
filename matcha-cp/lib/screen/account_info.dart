@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:matcha/Authentication/Login.dart';
 import '../constants/Constant.dart';
 
 class AccountInfo extends StatefulWidget {
@@ -28,9 +27,6 @@ class _AccountInfoState extends State<AccountInfo> {
   String? _selectedGender;
   DateTime? _selectedDOB;
 
-  // Availability system
-  final List<String> timeSlots = ["6-8am", "8-10am", "4-6pm", "6-8pm", "8-10pm"];
-  final List<String> days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   Map<String, List<String>> availability = {};
   List<String> interests = [];
   List<String> filteredInterestOptions = [];
@@ -216,6 +212,7 @@ class _AccountInfoState extends State<AccountInfo> {
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
       helpText: "Select Date of Birth",
+      
     );
     if (picked != null) {
       setState(() {
@@ -806,14 +803,16 @@ class _AccountInfoState extends State<AccountInfo> {
 
               const SizedBox(height: 24),
               Center(
-                child: ElevatedButton.icon(
-                  onPressed: _enterEditMode,
-                  icon: const Icon(Icons.edit),
-                  label: const Text("Edit Profile"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.deepPurple,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                child: SafeArea(
+                  child: ElevatedButton.icon(
+                    onPressed: _enterEditMode,
+                    icon: const Icon(Icons.edit),
+                    label: const Text("Edit Profile"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Color(0xFFFFEC3D),
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
                   ),
                 ),
               ),
@@ -883,30 +882,32 @@ class _AccountInfoState extends State<AccountInfo> {
               buildSkillsSection(true),
 
               const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      setState(() {
-                        interests = List<String>.from(_tempInterests);
-                        _userSkills = List<String>.from(_tempSkills);
-                        availability = {for (var e in _tempAvailability.entries) e.key: List<String>.from(e.value)};
-                      });
-                      _saveUserProfile();
-                    },
-                    icon: const Icon(Icons.save),
-                    label: const Text("Save Changes"),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Color(0xFFFFEC3D),
-                      foregroundColor: Colors.black,
+              SafeArea(
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          interests = List<String>.from(_tempInterests);
+                          _userSkills = List<String>.from(_tempSkills);
+                          availability = {for (var e in _tempAvailability.entries) e.key: List<String>.from(e.value)};
+                        });
+                        _saveUserProfile();
+                      },
+                      icon: const Icon(Icons.save),
+                      label: const Text("Save Changes"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Color(0xFFFFEC3D),
+                        foregroundColor: Colors.black,
+                      ),
                     ),
-                  ),
-                  TextButton(
-                    onPressed: _cancelEditMode,
-                    child: const Text("Cancel",style: TextStyle(color:Colors.white),),
-                  ),
-                ],
+                    TextButton(
+                      onPressed: _cancelEditMode,
+                      child: const Text("Cancel",style: TextStyle(color:Colors.white),),
+                    ),
+                  ],
+                ),
               ),
             ],
           ],

@@ -147,11 +147,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Icons.settings, 
         () => _showNotificationSettingsDialog(),
       ),
-      _buildSettingsItem(
-        "Test Notifications", 
-        Icons.notifications_active,
-        () => _showTestNotificationDialog(),
-      ),
     ]);
   }
 
@@ -164,11 +159,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           context,
           MaterialPageRoute(builder: (context) => const GroupInvitationsScreen()),
         ),
-      ),
-      _buildSettingsItem(
-        "My Groups", 
-        Icons.group, 
-        () => _showMyGroupsDialog(),
       ),
     ]);
   }
@@ -319,60 +309,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  void _showTestNotificationDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Test Notifications'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Test your notification settings:'),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                await _testLocalNotification();
-              },
-              child: const Text('Test Local Notification'),
-            ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                await _checkFCMToken();
-              },
-              child: const Text('Check FCM Token'),
-            ),
-            const SizedBox(height: 8),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.pop(context);
-                await _testBackgroundNotification();
-              },
-              child: const Text('Test Background Notification'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _testLocalNotification() async {
-    try {
-      await NotificationService().testNotification();
-      _showSnackBar('Local notification test sent!', Colors.green);
-    } catch (e) {
-      _showSnackBar('Error sending test notification: $e', Colors.red);
-    }
-  }
 
   Future<void> _checkFCMToken() async {
     try {
@@ -413,21 +349,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  void _showMyGroupsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('My Groups'),
-        content: const Text('Group management coming soon!'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
-    );
-  }
 
   void _showChangePasswordDialog() {
     final _currentPasswordController = TextEditingController();
@@ -445,6 +366,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 controller: _currentPasswordController,
                 obscureText: true,
                 decoration: const InputDecoration(
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                  ),
                   labelText: 'Current Password',
                   prefixIcon: Icon(Icons.lock_outline),
                 ),
@@ -454,6 +378,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 controller: _newPasswordController,
                 obscureText: true,
                 decoration: const InputDecoration(
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                  ),
                   labelText: 'New Password',
                   prefixIcon: Icon(Icons.lock),
                 ),
@@ -463,6 +390,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 controller: _confirmPasswordController,
                 obscureText: true,
                 decoration: const InputDecoration(
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(12)),
+                  ),
                   labelText: 'Confirm New Password',
                   prefixIcon: Icon(Icons.lock),
                 ),
@@ -473,9 +403,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: const Text('Cancel',style: TextStyle(color: Colors.white),),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Color(0xFFFFEC3D)
+            ),
             onPressed: () async {
               final currentPassword = _currentPasswordController.text.trim();
               final newPassword = _newPasswordController.text.trim();
@@ -505,7 +438,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _showSnackBar('Failed to change password: $e', Colors.red);
               }
             },
-            child: const Text('Change'),
+            child: const Text('Change',style: TextStyle(color: Colors.black),),
           ),
         ],
       ),

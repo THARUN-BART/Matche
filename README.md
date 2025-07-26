@@ -118,15 +118,6 @@ matcha-cp/
 └── 🌐 web/                       # Web-specific files
 ```
 
-## 🌐 Backend Infrastructure
-
-### API Endpoint
-```
-https://backend-u5oi.onrender.com
-```
-
-### 🔗 Backend Repository
-The complete backend source code is available at: [Matche Backend Repository](#)
 
 ### ⚡ Performance Notes
 - Backend hosted on Render's free tier
@@ -134,22 +125,6 @@ The complete backend source code is available at: [Matche Backend Repository](#)
 - Push notifications may experience delays during cold starts
 - For production use, consider upgrading to paid hosting
 
-## 🛠️ Configuration
-
-### Firebase Setup
-1. Create a new Firebase project
-2. Enable Authentication, Firestore, and Cloud Messaging
-3. Download google-services.json (Android) and GoogleService-Info.plist (iOS)
-4. Place files in respective platform directories
-
-### Environment Variables
-Create a .env file in the root directory:
-
-```env
-API_BASE_URL=https://backend-u5oi.onrender.com
-FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_API_KEY=your-api-key
-```
 
 ## 🧪 Testing
 
@@ -248,8 +223,6 @@ Found a bug? Please create an issue with:
 - v0.9.0 - Beta release with group functionality
 - v0.8.0 - Alpha release with basic chat
 
-## 📄 License
-This project is licensed under the MIT License - see the [LICENSE](#) file for details.
 
 ## 📞 Support & Contact
 
@@ -261,9 +234,9 @@ This project is licensed under the MIT License - see the [LICENSE](#) file for d
 
 | Name           | GitHub Profile                                      | Contributions                                      |
 |----------------|-----------------------------------------------------|----------------------------------------------------|
-| Tharun         | [@THARUN-BART](https://github.com/THARUN-BART)      | Project Owner, Fullstack                           |
-| Ugesh Praveed  | [@Ugesh-Praavin](https://github.com/Ugesh-Praavin)  | UI Design, Docs, Worked in some places             |
-| Jyoshinisri    | [@jyoshinisris](https://github.com/jyoshinisris)    | UI Design, Docs, PPT, Explanation & Idea of Project|
+| Tharun         | [@THARUN-BART](https://github.com/THARUN-BART)      | Product lead, Fullstack                           |
+| Ugesh Praveed  | [@Ugesh-Praavin](https://github.com/Ugesh-Praavin)  | UI Design, Docs, Technical assistance         |
+| Jyoshinisri    | [@jyoshinisris](https://github.com/jyoshinisris)    | ML Engineer, UI Design, Docs, PPT, Explanation & Idea of Project|
 
 
 
@@ -278,6 +251,6 @@ This project is licensed under the MIT License - see the [LICENSE](#) file for d
 - Open source community for inspiration
 
 <div align="center">
-  <p>Made with ❤️ by THARUN-BART</p>
+  <p>Made with ❤️ by I.V.A.N</p>
   <p>⭐ Star this repo if you found it helpful!</p>
 </div>

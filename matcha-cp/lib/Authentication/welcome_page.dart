@@ -23,7 +23,6 @@ class _welcome_pageState extends State<welcome_page> {
           SizedBox(height: 30),
           Image.asset('Assets/Main_IC.png'),
           SizedBox(height: 25),
-          // Login button
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 40),
             child: SizedBox(
@@ -31,7 +30,7 @@ class _welcome_pageState extends State<welcome_page> {
               height: 50,
               child: ElevatedButton(
                 onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => Login()));
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => LoginScreen()));
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.transparent,

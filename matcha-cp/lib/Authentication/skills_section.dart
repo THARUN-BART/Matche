@@ -1,10 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-
 import '../constants/Constant.dart';
-import '../screen/main_navigation.dart';
 import '../service/notification_service.dart';
 import 'interests_selection.dart';
 
@@ -23,9 +20,7 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
 
   List<String> selectedSkills = [];
   List<String> filteredSkills = [];
-  bool _isLoading = false;
-
-
+  bool _showError = false;
 
   @override
   void initState() {
@@ -56,17 +51,23 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
       } else {
         selectedSkills.add(skill);
       }
+      // Hide error when user selects at least one skill
+      if (selectedSkills.isNotEmpty) {
+        _showError = false;
+      }
     });
   }
 
-  Future<void> _saveAndContinue() async {
-    setState(() => _isLoading = true);
-
+  Future<void> _continueToNextScreen() async {
     if (selectedSkills.isEmpty) {
+      setState(() => _showError = true);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Please select at least one skill."), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text("Please select at least one skill."),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
+        ),
       );
-      setState(() => _isLoading = false);
       return;
     }
 
@@ -78,55 +79,32 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
       // Get and store FCM token
       await NotificationService().storeTokenAfterLogin(userData['uid']);
 
-      // Save to Firestore
-      await _firestore.collection("users").doc(userData['uid']).set(userData);
 
-      // Navigate to home page
-      Navigator.pushReplacement(
+      Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => InterestsSelectionScreen(userData: userData),
+          builder: (context) => InterestsSelectionScreen(userData: userData),
         ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error saving data: ${e.toString()}"), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text("Error: ${e.toString()}"),
+          backgroundColor: Colors.red,
+        ),
       );
     }
-
-    setState(() => _isLoading = false);
   }
 
-  Future<void> _skipToHome() async {
-    setState(() => _isLoading = true);
 
-    try {
-      final userData = Map<String, dynamic>.from(widget.userData);
-      userData['skills'] = <String>[];
-
-      // Get and store FCM token
-      await NotificationService().storeTokenAfterLogin(userData['uid']);
-
-      await _firestore.collection("users").doc(userData['uid']).set(userData);
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const MainNavigation()),
-            (route) => false,
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error saving data: ${e.toString()}"), backgroundColor: Colors.red),
-      );
-    }
-
-    setState(() => _isLoading = false);
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+          leading: IconButton(onPressed: (){
+            Navigator.pop(context);
+          }, icon: Icon(Icons.arrow_back_ios)),
         title: Image.asset('Assets/Star.png', height: 100),
         centerTitle: true,
         automaticallyImplyLeading: false,
@@ -143,20 +121,25 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
                     Text(
                       "SKILLS",
                       style: TextStyle(
-                          color: Color(0xFFFFEC3D),
-                          fontSize: 30,
-                          fontWeight: FontWeight.bold),
+                        color: Color(0xFFFFEC3D),
+                        fontSize: 30,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     Text(
                       "What skills do you have?",
                       style: GoogleFonts.inter(
-                          fontSize: 18, fontWeight: FontWeight.w600),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       "Add skills to help others find you",
                       style: GoogleFonts.inter(
-                          fontSize: 14, color: Colors.grey[600]),
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
                     ),
                     const SizedBox(height: 16),
                     TextField(
@@ -176,7 +159,9 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
                       Text(
                         "Selected Skills (${selectedSkills.length})",
                         style: GoogleFonts.inter(
-                            fontSize: 16, fontWeight: FontWeight.w600),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Wrap(
@@ -185,11 +170,16 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
                         children: selectedSkills
                             .map(
                               (skill) => Chip(
-                            label: Text(skill,
-                                style: const TextStyle(color: Colors.black)),
+                            label: Text(
+                              skill,
+                              style: const TextStyle(color: Colors.black),
+                            ),
                             backgroundColor: Color(0xFFFFEC3D),
-                            deleteIcon: const Icon(Icons.close,
-                                color: Colors.black, size: 16),
+                            deleteIcon: const Icon(
+                              Icons.close,
+                              color: Colors.black,
+                              size: 16,
+                            ),
                             onDeleted: () => _toggleSkill(skill),
                           ),
                         )
@@ -197,6 +187,17 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
                       ),
                       const SizedBox(height: 16),
                     ],
+                    if (_showError)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          "Please select at least one skill",
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -213,7 +214,10 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
                       margin: const EdgeInsets.only(bottom: 8),
                       child: ListTile(
                         shape: RoundedRectangleBorder(
-                          side: BorderSide(color: Color(0xFFFFEC3D), width: 2),
+                          side: BorderSide(
+                            color: isSelected ? Colors.green : Color(0xFFFFEC3D),
+                            width: 2,
+                          ),
                           borderRadius: BorderRadius.circular(24),
                         ),
                         title: Text(skill),
@@ -225,7 +229,6 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
                         ),
                         onTap: () => _toggleSkill(skill),
                         selected: isSelected,
-
                       ),
                     );
                   },
@@ -238,23 +241,35 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
             bottom: 20,
             left: 16,
             right: 16,
-            child: ElevatedButton(
-              onPressed: () {
-                final userData = Map<String, dynamic>.from(widget.userData);
-                userData['skills'] = selectedSkills;
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => InterestsSelectionScreen(userData: userData)),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFFFFEC3D),
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text("CONTINUE 2/5"),
+            child: Column(
+              children: [
+                if (_showError)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      "Please select at least one skill to continue",
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ElevatedButton(
+                  onPressed: _continueToNextScreen,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFFFFEC3D),
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                  child: const Text("CONTINUE 2/5"),
+                ),
+                const SizedBox(height: 8),
+
+              ],
             ),
           ),
         ],
@@ -262,5 +277,3 @@ class _SkillsSelectionScreenState extends State<SkillsSelectionScreen> {
     );
   }
 }
-
-

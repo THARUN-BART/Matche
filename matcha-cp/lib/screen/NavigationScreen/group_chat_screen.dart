@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 
 import '../../service/firestore_service.dart';
-import '../../service/group_service.dart';
 import '../group_management_screen.dart';
 
 class GroupChatScreen extends StatefulWidget {

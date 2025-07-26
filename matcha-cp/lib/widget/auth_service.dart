@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Auth change user stream
   Stream<User?> get user {
     return _auth.authStateChanges();
   }
@@ -20,7 +19,6 @@ class AuthService {
     }
   }
 
-  // Register with email and password
   Future<UserCredential?> registerWithEmail(String email, String password) async {
     try {
       return await _auth.createUserWithEmailAndPassword(

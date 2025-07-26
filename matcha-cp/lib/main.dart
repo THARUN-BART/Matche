@@ -35,7 +35,7 @@ Future<void> initializeFirebaseIfNeeded() async {
   }
 }
 
-Future<void> main() async {
+Future main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeFirebaseIfNeeded();
 
@@ -50,12 +50,11 @@ Future<void> main() async {
         Provider(create: (_) => GroupService()),
         Provider(create: (_) => RealtimeChatService()),
       ],
-      child: const NetworkAwareWidget(
-        child: Matcha(),
-      ),
+      child: const Matcha(),
     ),
   );
 }
+
 
 class Matcha extends StatelessWidget {
   const Matcha({super.key});
@@ -63,10 +62,13 @@ class Matcha extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
-      home: const SplashScreen(),
+      navigatorKey: navigatorKey,
       theme: ThemeData.dark(useMaterial3: true),
+      home: const NetworkAwareWidget(
+        child: SplashScreen(),
+      ),
     );
   }
 }
+

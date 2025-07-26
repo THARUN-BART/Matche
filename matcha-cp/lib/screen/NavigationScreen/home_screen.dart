@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:matcha/screen/NavigationScreen/settings.dart';
 import 'package:provider/provider.dart';
 import '../../service/firestore_service.dart';
 import '../../service/group_service.dart';
@@ -39,7 +40,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Refresh connection requests when dependencies change (e.g., when returning from other screens)
     if (_profileComplete) {
       _loadConnectionRequests();
     }
@@ -59,8 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final data = userSnap.data() as Map<String, dynamic>;
     _userData = data;
-    
-    // Check each profile section
+
     final missingSections = _getMissingProfileSections(data);
     final complete = missingSections.isEmpty;
     
@@ -93,8 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
                            data['availability'].toString().isNotEmpty &&
                            data['availability'] != '[]';
     if (!hasAvailability) missingSections.add('Availability');
-    
-    // Check Big5 Personality
+
     final big5 = data['big5'];
     final hasBig5 = big5 is Map && 
                    ['O','C','E','A','N'].every((k) => big5[k] != null && big5[k] is num);
@@ -142,10 +140,9 @@ class _HomeScreenState extends State<HomeScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const AccountInfo(),
+                  builder: (context) => const SettingsScreen(),
                 ),
               ).then((_) {
-                // Refresh profile completeness after returning from account info
                 _checkProfileCompleteness();
               });
             },
@@ -208,7 +205,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (currentUserId.isEmpty) return;
 
     try {
-      // Load sent requests
       final sentRequestsQuery = await firestoreService.getSentConnectionRequests().first;
       final sentUserIds = sentRequestsQuery.docs.map((doc) => doc.id).toSet();
       
@@ -219,7 +215,6 @@ class _HomeScreenState extends State<HomeScreen> {
         return data['from'] as String;
       }).toSet();
 
-      // Load existing connections
       final connectionsQuery = await firestoreService.getUserConnections().first;
       final connectedUserIds = connectionsQuery.docs.map((doc) => doc.id).toSet();
 
@@ -262,145 +257,6 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       }
     }
-  }
-
-  Widget _buildConnectionButton(String userId, String userName) {
-    final isSent = _sentRequestUserIds.contains(userId);
-    final isPending = _pendingRequestUserIds.contains(userId);
-    final isConnected = _connectedUserIds.contains(userId);
-    
-    if (isConnected) {
-      return PopupMenuButton<String>(
-        onSelected: (value) {
-          switch (value) {
-            case 'chat':
-              _openChatWithUser(userId, userName);
-              break;
-            case 'block':
-              _showBlockUserDialog(userId, userName);
-              break;
-          }
-        },
-        itemBuilder: (context) => [
-          const PopupMenuItem(
-            value: 'chat',
-            child: Row(
-              children: [
-                Icon(Icons.chat, color: Colors.blue),
-                SizedBox(width: 8),
-                Text('Chat'),
-              ],
-            ),
-          ),
-          const PopupMenuItem(
-            value: 'block',
-            child: Row(
-              children: [
-                Icon(Icons.block, color: Colors.red),
-                SizedBox(width: 8),
-                Text('Block'),
-              ],
-            ),
-          ),
-        ],
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.green.shade100,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.green.shade300),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.check_circle, size: 16, color: Colors.green.shade700),
-              const SizedBox(width: 4),
-              Text(
-                'Connected',
-                style: TextStyle(
-                  color: Colors.green.shade700,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Icon(Icons.arrow_drop_down, size: 16, color: Colors.green.shade700),
-            ],
-          ),
-        ),
-      );
-    }
-    
-    if (isSent) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.orange.shade100,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.orange.shade300),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.schedule, size: 16, color: Colors.orange.shade700),
-            const SizedBox(width: 4),
-            Text(
-              'Pending',
-              style: TextStyle(
-                color: Colors.orange.shade700,
-                fontWeight: FontWeight.w500,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    
-    if (isPending) {
-      return InkWell(
-        onTap: () => _showRespondToRequestDialog(userId, userName),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.blue.shade100,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.blue.shade300),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.notifications, size: 16, color: Colors.blue.shade700),
-              const SizedBox(width: 4),
-              Text(
-                'Respond',
-                style: TextStyle(
-                  color: Colors.blue.shade700,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    
-    return ElevatedButton(
-      onPressed: () => _sendConnectionRequest(userId, userName),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-      ),
-      child: const Text(
-        'Connect',
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-      ),
-    );
   }
 
   void _showRespondToRequestDialog(String fromUserId, String fromUserName) {
@@ -860,7 +716,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     builder: (context) => const AccountInfo(),
                   ),
                 ).then((_) {
-                  // Refresh profile completeness after returning from account info
                   _checkProfileCompleteness();
                 });
               },
@@ -878,48 +733,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showMatchingDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Find Study Partner"),
-        content: const Text("Searching for compatible study partners based on your profile..."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Searching for matches...")),
-              );
-            },
-            child: const Text("Search"),
-          ),
-        ],
-      ),
-    );
-  }
 
 
-  void _connectWithPeer(BuildContext context, String userId) {
-    final firestoreService = Provider.of<FirestoreService>(context, listen: false);
-    firestoreService.addConnection(userId);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Connection created"), backgroundColor: Colors.green),
-    );
-  }
 
-  void _openChat(BuildContext context, String userId) {
-    final currentUserId = Provider.of<FirestoreService>(context, listen: false).currentUserId;
-    final chatId = [currentUserId, userId]..sort();
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => ChatScreen(
-        chatId: '${chatId[0]}_${chatId[1]}',
-        otherUserId: userId,
-      )),
-    );
-  }
+
 
   void _openGroupChat(BuildContext context, String groupId, Map<String, dynamic> group) {
     Navigator.push(

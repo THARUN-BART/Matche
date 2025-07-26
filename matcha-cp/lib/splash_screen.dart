@@ -17,15 +17,16 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  bool _initializationCompleted = false;
+
   @override
   void initState() {
     super.initState();
-    print('SplashScreen: initState called');
     _checkConnectivityAndInitialize();
 
+    // Timeout fallback
     Future.delayed(const Duration(seconds: 10), () {
-      if (mounted) {
-        print('SplashScreen: Timeout reached, forcing navigation to Login');
+      if (mounted && !_initializationCompleted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const welcome_page()),
@@ -35,16 +36,43 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkConnectivityAndInitialize() async {
-    final connectivity = await Connectivity().checkConnectivity();
-    if (connectivity == ConnectivityResult.none) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const NoInternetScreen()),
-      );
-      return;
-    }
+    try {
+      final connectivity = await Connectivity().checkConnectivity();
 
-    await _initializeAppAndCheckAuth();
+      if (connectivity == ConnectivityResult.none) {
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const NoInternetScreen()),
+          );
+        }
+        return;
+      }
+
+      await _testInternetConnectivity();
+      await _initializeAppAndCheckAuth();
+
+    } catch (e) {
+      print('Connectivity check failed: $e');
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const NoInternetScreen()),
+        );
+      }
+    }
+  }
+
+  Future<void> _testInternetConnectivity() async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('test')
+          .limit(1)
+          .get()
+          .timeout(const Duration(seconds: 5));
+    } catch (e) {
+      throw Exception('No internet connectivity');
+    }
   }
 
   Future<void> _initializeAppAndCheckAuth() async {
@@ -52,12 +80,12 @@ class _SplashScreenState extends State<SplashScreen> {
       await _initializeNotifications();
       await Future.delayed(const Duration(milliseconds: 1000));
       await _checkAuthState();
+      _initializationCompleted = true;
     } catch (e) {
       _navigateToErrorScreen('Initialization failed: $e');
     }
   }
 
-  /// Requests notification permission and sets up Firebase Messaging
   Future<void> _initializeNotifications() async {
     try {
       final settings = await FirebaseMessaging.instance.requestPermission(
@@ -67,21 +95,18 @@ class _SplashScreenState extends State<SplashScreen> {
       );
 
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-        print('✅ Notification permission granted');
         await NotificationService().initialize();
       } else {
-        _navigateToErrorScreen('Notification permission denied');
+        print('Notification permission denied - continuing without notifications');
       }
     } catch (e) {
-      _navigateToErrorScreen('Notification setup error: $e');
+      print('Notification setup error: $e');
     }
   }
 
-  /// Checks if the user is logged in and navigates accordingly
   Future<void> _checkAuthState() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
-      print('SplashScreen: Current user: ${user?.uid ?? "null"}');
 
       if (user != null) {
         final userDoc = await FirebaseFirestore.instance
@@ -104,6 +129,7 @@ class _SplashScreenState extends State<SplashScreen> {
         _navigateToLogin();
       }
     } catch (e) {
+      print('Auth check failed: $e');
       _navigateToLogin();
     }
   }
@@ -118,9 +144,6 @@ class _SplashScreenState extends State<SplashScreen> {
         });
 
         await NotificationService().storeTokenAfterLogin(userId);
-        print('FCM token stored');
-      } else {
-        print('FCM token is null');
       }
     } catch (e) {
       print('Failed to store FCM token: $e');
@@ -153,12 +176,17 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image(
-              image: AssetImage('Assets/Main_IC.png'),
-              width: 250,
-            ),
+            Image(image: AssetImage('Assets/Main_IC.png'), width: 250),
             SizedBox(height: 20),
             CircularProgressIndicator(color: Colors.white),
+            SizedBox(height: 20),
+            Text(
+              'Loading...',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 16,
+              ),
+            ),
           ],
         ),
       ),

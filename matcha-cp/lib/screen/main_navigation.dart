@@ -29,7 +29,6 @@ class _MainNavigationState extends State<MainNavigation> {
   @override
   void initState() {
     super.initState();
-    // Check if we need to navigate to a specific tab
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkNavigationArguments();
     });
@@ -301,7 +300,6 @@ class _MainNavigationState extends State<MainNavigation> {
                   }
 
                   final notifications = snapshot.data?.docs ?? [];
-                  // Filter for unique group invitations by groupId
                   final uniqueInvites = <String, Map<String, dynamic>>{};
                   final uniqueOther = <String, Map<String, dynamic>>{};
                   for (var doc in notifications) {
@@ -324,7 +322,6 @@ class _MainNavigationState extends State<MainNavigation> {
                         subtitle: Text(n['body'] ?? ''),
                         trailing: Icon(Icons.group, color: Colors.green),
                       )),
-                      // Show other unique notifications
                       ...uniqueOther.values.map((n) => ListTile(
                         leading: const Icon(Icons.notifications, color: Color(0xFFFFEC3D)),
                         title: Text(n['title'] ?? 'Notification'),

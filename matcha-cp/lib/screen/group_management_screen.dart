@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../service/group_service.dart';
 import '../service/firestore_service.dart';
-import 'join_group_screen.dart';
 
 class GroupManagementScreen extends StatefulWidget {
   final String groupId;

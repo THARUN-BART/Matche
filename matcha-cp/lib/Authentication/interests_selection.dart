@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:matcha/service/notification_service.dart';
-import 'package:matcha/screen/main_navigation.dart';
 import '../constants/Constant.dart';
 import 'availability_selection.dart';
 
@@ -22,6 +20,7 @@ class _InterestsSelectionScreenState extends State<InterestsSelectionScreen> {
   List<String> selectedInterests = [];
   List<String> filteredInterests = [];
   bool _isLoading = false;
+  bool _showError = false;
 
   @override
   void initState() {
@@ -52,59 +51,66 @@ class _InterestsSelectionScreenState extends State<InterestsSelectionScreen> {
       } else {
         selectedInterests.add(interest);
       }
+      // Hide error when user selects at least one interest
+      if (selectedInterests.isNotEmpty) {
+        _showError = false;
+      }
     });
   }
 
   Future<void> _saveAndContinue() async {
-    setState(() => _isLoading = true);
     if (selectedInterests.isEmpty) {
+      setState(() => _showError = true);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Please select at least one interest."), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text("Please select at least one interest."),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 2),
+        ),
       );
-      setState(() => _isLoading = false);
       return;
     }
+
+    setState(() => _isLoading = true);
+
     try {
       final userData = Map<String, dynamic>.from(widget.userData);
       userData['interests'] = selectedInterests;
-      await NotificationService().storeTokenAfterLogin(userData['uid']);
-      await _firestore.collection("users").doc(userData['uid']).set(userData, SetOptions(merge: true));
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => AvailabilitySelectionScreen(userData: userData)),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error saving data: "+e.toString()), backgroundColor: Colors.red),
-      );
-    }
-    setState(() => _isLoading = false);
-  }
 
-  Future<void> _skipToHome() async {
-    setState(() => _isLoading = true);
-    try {
-      final userData = Map<String, dynamic>.from(widget.userData);
-      userData['interests'] = <String>[];
       await NotificationService().storeTokenAfterLogin(userData['uid']);
-      await _firestore.collection("users").doc(userData['uid']).set(userData, SetOptions(merge: true));
-      Navigator.pushAndRemoveUntil(
+      await _firestore.collection("users").doc(userData['uid']).set(
+          userData,
+          SetOptions(merge: true)
+      );
+
+      if (!mounted) return;
+      Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => const MainNavigation()),
-        (route) => false,
+        MaterialPageRoute(
+          builder: (_) => AvailabilitySelectionScreen(userData: userData),
+        ),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error saving data: "+e.toString()), backgroundColor: Colors.red),
+        SnackBar(
+          content: Text("Error saving data: ${e.toString()}"),
+          backgroundColor: Colors.red,
+        ),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
-    setState(() => _isLoading = false);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(onPressed: (){
+          Navigator.pop(context);
+        }, icon: Icon(Icons.arrow_back_ios)),
         title: Image.asset('Assets/Star.png', height: 100),
         centerTitle: true,
         automaticallyImplyLeading: false,
@@ -121,20 +127,26 @@ class _InterestsSelectionScreenState extends State<InterestsSelectionScreen> {
                     Text(
                       "INTEREST",
                       style: TextStyle(
-                          color: Color(0xFFFFEC3D),
-                          fontSize: 30,
-                          fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      "What are your interests?",
-                      style:
-                      GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w600),
+                        color: Color(0xFFFFEC3D),
+                        fontSize: 30,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
+                      "What are your interests?",
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
                       "Add interests to help others find you",
-                      style:
-                      GoogleFonts.inter(fontSize: 14, color: Colors.grey[600]),
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                      ),
                     ),
                     const SizedBox(height: 16),
                     TextField(
@@ -146,7 +158,7 @@ class _InterestsSelectionScreenState extends State<InterestsSelectionScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         filled: true,
-                        fillColor: Colors.transparent
+                        fillColor: Colors.transparent,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -154,27 +166,41 @@ class _InterestsSelectionScreenState extends State<InterestsSelectionScreen> {
                       Text(
                         "Selected Interests (${selectedInterests.length})",
                         style: GoogleFonts.inter(
-                            fontSize: 16, fontWeight: FontWeight.w600),
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 8,
                         runSpacing: 4,
-                        children: selectedInterests
-                            .map(
-                              (interest) => Chip(
-                            label: Text(interest,
-                                style: const TextStyle(color: Colors.black)),
-                            backgroundColor: Color(0xFFFFEC3D),
-                            deleteIcon: const Icon(Icons.close,
-                                color: Colors.black, size: 16),
-                            onDeleted: () => _toggleInterest(interest),
+                        children: selectedInterests.map((interest) => Chip(
+                          label: Text(
+                            interest,
+                            style: const TextStyle(color: Colors.black),
                           ),
-                        )
-                            .toList(),
+                          backgroundColor: Color(0xFFFFEC3D),
+                          deleteIcon: const Icon(
+                            Icons.close,
+                            color: Colors.black,
+                            size: 16,
+                          ),
+                          onDeleted: () => _toggleInterest(interest),
+                        )).toList(),
                       ),
                       const SizedBox(height: 16),
                     ],
+                    if (_showError)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          "Please select at least one interest",
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -185,9 +211,13 @@ class _InterestsSelectionScreenState extends State<InterestsSelectionScreen> {
                   itemBuilder: (context, index) {
                     final interest = filteredInterests[index];
                     final isSelected = selectedInterests.contains(interest);
+
                     return Card(
                       shape: RoundedRectangleBorder(
-                        side: BorderSide(color: Color(0xFFFFEC3D), width: 2),
+                        side: BorderSide(
+                          color: isSelected ? Colors.green : Color(0xFFFFEC3D),
+                          width: 2,
+                        ),
                         borderRadius: BorderRadius.circular(24),
                       ),
                       elevation: 0,
@@ -214,30 +244,46 @@ class _InterestsSelectionScreenState extends State<InterestsSelectionScreen> {
             bottom: 16,
             left: 16,
             right: 16,
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : _saveAndContinue,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Color(0xFFFFEC3D),
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            child: Column(
+              children: [
+                if (_showError)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      "Please select at least one interest to continue",
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _saveAndContinue,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFFFFEC3D),
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    minimumSize: const Size(double.infinity, 50),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                      : const Text("CONTINUE 3/5"),
                 ),
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
-              )
-                  : Text(
-                "Continue 3/5",
-              ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
-} 
+}

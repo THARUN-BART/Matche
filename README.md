@@ -60,7 +60,7 @@ Matche is a modern, feature-rich social platform that connects people through in
 ### 📲 APK Download
 Ready to try Matche? Download the latest APK:
 
-[MATCHE apk]("https://drive.google.com/file/d/1MiXVosHu-ZmFj6hNm4ylmFVYjV2CdbGZ/view?usp=drive_link")
+[📦 Download MATCHE APK](https://drive.google.com/file/d/1MiXVosHu-ZmFj6hNm4ylmFVYjV2CdbGZ/view?usp=drive_link)
 
 - Minimum Android Version: 5.0 (API level 21)
 - File Size: ~25MB

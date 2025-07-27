@@ -235,8 +235,8 @@ Found a bug? Please create an issue with:
 | Name           | GitHub Profile                                      | Contributions                                      |
 |----------------|-----------------------------------------------------|----------------------------------------------------|
 | Tharun         | [@THARUN-BART](https://github.com/THARUN-BART)      | Product lead, Fullstack                           |
-| Ugesh Praveed  | [@Ugesh-Praavin](https://github.com/Ugesh-Praavin)  | UI Design, Docs, Technical assistance         |
-| Jyoshinisri    | [@jyoshinisris](https://github.com/jyoshinisris)    | ML Engineer, UI Design, Docs, PPT, Explanation & Idea of Project|
+| Ugesh Praavin  | [@Ugesh-Praavin](https://github.com/Ugesh-Praavin)  | UI Design, Docs, Technical assistance         |
+| Jyoshini Sri    | [@jyoshinisris](https://github.com/jyoshinisris)    | ML Engineer, UI Design, Docs, PPT, Explanation & Idea of Project|
 
 
 
